@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
+	"gofire/internal/constants"
 	"os"
 	"path/filepath"
 )
 
 const (
-	baseDir       = "./migrations"
-	schema        = "gofire_schema"
-	migrationLock = 1
+	baseDir = "./migrations"
+	schema  = "gofire_schema"
 )
 
 func Init(postgresURL string) error {
@@ -20,10 +20,13 @@ func Init(postgresURL string) error {
 		return err
 	}
 
-	if err = acquirePostgresDistributedLock(db, migrationLock); err != nil {
+	migrationLock := constants.MigrationLock
+	lock := NewLock(db)
+
+	if err = lock.AcquirePostgresDistributedLock(migrationLock); err != nil {
 		return err
 	}
-	defer releasePostgresDistributedLock(db, migrationLock)
+	defer lock.ReleasePostgresDistributedLock(migrationLock)
 
 	if err = db.Ping(); err != nil {
 		return err
