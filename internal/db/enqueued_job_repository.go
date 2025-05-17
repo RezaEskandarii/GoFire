@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"gofire/internal/constants"
+	"gofire/internal/state"
 	"gofire/internal/task"
 	"time"
 )
@@ -93,9 +94,9 @@ func (r *JobRepository) MarkSuccess(ctx context.Context, jobID int) {
 }
 
 func (r *JobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) {
-	status := task.StatusFailed
+	status := state.StatusFailed
 	if attempts+1 >= constants.MaxRetryAttempt {
-		status = task.StatusDead
+		status = state.StatusDead
 	}
 	r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs

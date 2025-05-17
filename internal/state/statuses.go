@@ -1,4 +1,4 @@
-package task
+package state
 
 type JobStatus string
 
@@ -13,12 +13,12 @@ const (
 	StatusDead       JobStatus = "dead"
 )
 
-type StateTransition struct {
+type Transition struct {
 	From JobStatus
 	To   JobStatus
 }
 
-var ValidTransitions = []StateTransition{
+var ValidTransitions = []Transition{
 	{From: StatusQueued, To: StatusProcessing},
 	{From: StatusProcessing, To: StatusSucceeded},
 	{From: StatusProcessing, To: StatusFailed},

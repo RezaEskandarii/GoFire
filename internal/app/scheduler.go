@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"gofire/internal/constants"
 	"gofire/internal/db"
+	"gofire/internal/state"
 	"gofire/internal/task"
 	"golang.org/x/sync/semaphore"
 	"log"
@@ -95,11 +96,14 @@ func (s *Scheduler) ProcessEnqueues(ctx context.Context) error {
 					var args []interface{}
 					_ = json.Unmarshal(job.Payload, &args)
 
-					if err := handler(args); err != nil {
-						s.repository.MarkFailure(ctx, job.ID, err.Error(), job.Attempts, job.MaxAttempts)
-					} else {
+					if err := handler(args); err != nil && state.IsValidTransition(job.Status, state.StatusFailed) {
+
+						s.repository.MarkFailure(ctx, job.ID, err.Error(), job.Attempts+1, job.MaxAttempts)
+
+					} else if err == nil && state.IsValidTransition(job.Status, state.StatusSucceeded) {
 						s.repository.MarkSuccess(ctx, job.ID)
 					}
+
 				}(job)
 			}
 
