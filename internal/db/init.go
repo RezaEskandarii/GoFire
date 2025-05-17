@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	baseDir = "./migrations"
-	schema  = "gofire_schema"
+	baseDir       = "./migrations"
+	schema        = "gofire_schema"
+	migrationLock = 1
 )
 
 func Init(postgresURL string) error {
@@ -19,12 +20,18 @@ func Init(postgresURL string) error {
 		return err
 	}
 
+	if err = acquirePostgresDistributedLock(db, migrationLock); err != nil {
+		return err
+	}
+	defer releasePostgresDistributedLock(db, migrationLock)
+
 	if err = db.Ping(); err != nil {
 		return err
 	}
+
 	defer db.Close()
 
-	_, err = db.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schema))
+	_, err = db.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema))
 	if err != nil {
 		return err
 	}
