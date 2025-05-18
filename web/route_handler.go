@@ -42,6 +42,7 @@ func (handler *HttpRouteHandler) handleDashboard() {
 			log.Println(err)
 		}
 
+		allJobsCount
 		data := NewPaginatedDataMap(*jobs).
 			Add("Statuses", state.AllStatuses).
 			Add("CurrentStatus", status)

@@ -8,7 +8,6 @@ import (
 	"gofire/internal/constants"
 	"gofire/internal/models"
 	"gofire/internal/state"
-	"log"
 	"math"
 	"time"
 )
@@ -209,16 +208,27 @@ func (r *PostgresEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, s
 	return count, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) CountAllJobsByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
-	result := map[state.JobStatus]int{}
-	for _, status := range state.AllStatuses {
-		count, err := r.CountJobsByStatus(ctx, status)
-		if err != nil {
-			log.Printf("Error counting %s: %v\n", status, err)
-			continue
+func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.Context, db *sql.DB) (map[state.JobStatus]int, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT status, COUNT(*) AS count
+		FROM gofire_schema.enqueued_jobs
+		GROUP BY status
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[state.JobStatus]int)
+	for rows.Next() {
+		var status state.JobStatus
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
 		}
 		result[status] = count
 	}
+
 	return result, nil
 }
 
