@@ -1,7 +1,8 @@
 {{define "content"}}
-<h1>Dashboard</h1>
 
-<div class="row g-3">
+<h1>Queued Jobs</h1>
+<br>
+<div class="row">
     <div class="col-md-3">
         <div class="card text-white bg-success">
             <div class="card-body">
@@ -10,32 +11,45 @@
             </div>
         </div>
     </div>
-</div>
+    <div class="col-md-9">
+        <div class="row">
+            <div class="col-md-4">
+                <label>Status</label>
+                <form action="/">
+                    <select name="status" class="form-control" onchange="this.form.submit()">
+                        <option value="">---all---</option>
+                        {{range .Statuses}}
+                        <option value="{{.}}" {{if eq . $.CurrentStatus}}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
+                </form>
+            </div>
+            <div class="col-md-3">
+                <div>
+                    Page {{ .Page }} of {{ .TotalPages }} ({{ .TotalItems }} jobs)
+                </div>
 
-<h1>Queued Jobs</h1>
-<div class="row">
-    <div class="col-md-3">
-        <label>Status</label>
-        <form action="/">
-            <select name="status" class="form-control" onchange="this.form.submit()">
-                <option value="">---all---</option>
-                {{range .Statuses}}
-                <option value="{{.}}" {{if eq . $.CurrentStatus}}selected{{end}}>{{.}}</option>
-                {{end}}
-            </select>
-        </form>
-    </div>
-</div>
-<br>
-<div class="row">
-    <div class="col-md-12">
+                <div class="pagination">
+                    {{ if .HasPreviousPage }}
+                    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'prev')" data-page="{{ .Page }}">«
+                        Previous</a>
+                    {{ end }}
+                    &nbsp;
+                    {{ if .HasNextPage }}
+                    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'next')" data-page="{{ .Page }}">Next
+                        »</a>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+        <br>
         <div class="responsive-table">
             <table class="table table-bordered">
                 <thead>
                 <tr>
                     <th>ID</th>
                     <th>Name</th>
-                    <th>Status</th>
+                   <th>Status</th>
                     <th>Attempts</th>
                     <th>Scheduled At</th>
                     <th>Last Error</th>
@@ -47,32 +61,19 @@
                 <tr>
                     <td>{{ .ID }}</td>
                     <td>{{ .Name }}</td>
-                    <td>{{ .Status }}</td>
+                    <td><span class="{{ StatusBadgeClass .Status }}">{{ .Status }}</span></td>
                     <td>{{ .Attempts }}/{{ .MaxAttempts }}</td>
                     <td>{{ .ScheduledAt.Format "2006-01-02 15:04:05" }}</td>
                     <td>{{ if .LastError }}{{ .LastError }}{{ else }}-{{ end }}</td>
-                    <td><pre>{{ printf "%s" .Payload }}</pre></td>
+                    <td>
+                        <pre>{{ printf "%s" .Payload }}</pre>
+                    </td>
                 </tr>
                 {{ end }}
                 </tbody>
             </table>
         </div>
     </div>
-</div>
-
-
-<div>
-    Page {{ .Page }} of {{ .TotalPages }} ({{ .TotalItems }} jobs)
-</div>
-
-<div class="pagination">
-    {{ if .HasPreviousPage }}
-    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'prev')" data-page="{{ .Page }}">« Previous</a>
-    {{ end }}
-    &nbsp;
-    {{ if .HasNextPage }}
-    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'next')" data-page="{{ .Page }}">Next »</a>
-    {{ end }}
 </div>
 <br>
 <br>

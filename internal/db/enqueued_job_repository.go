@@ -6,21 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"gofire/internal/constants"
+	"gofire/internal/models"
 	"gofire/internal/state"
-	"gofire/internal/task"
 	"math"
 	"time"
 )
-
-type PaginationResult[T any] struct {
-	Items           []T  `json:"items"`
-	TotalItems      int  `json:"total_items"`
-	Page            int  `json:"page"`
-	PageSize        int  `json:"page_size"`
-	TotalPages      int  `json:"total_pages"`
-	HasNextPage     bool `json:"has_next_page"`
-	HasPreviousPage bool `json:"has_previous_page"`
-}
 
 type EnqueuedJobRepository struct {
 	db *sql.DB
@@ -41,7 +31,11 @@ func (r *EnqueuedJobRepository) Insert(ctx context.Context, jobName string, sche
 
 	query := `
         INSERT INTO gofire_schema.enqueued_jobs (
-            name, payload, scheduled_at, max_attempts, created_at
+            name,
+            payload, 
+            scheduled_at, 
+            max_attempts,
+            created_at
         )
         VALUES ($1, $2, $3, $4, now())
         returning id
@@ -63,7 +57,7 @@ func (r *EnqueuedJobRepository) FetchDueJobs(
 	page int,
 	pageSize int,
 	status *state.JobStatus,
-	scheduledBefore *time.Time) (*PaginationResult[task.EnqueuedJob], error) {
+	scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error) {
 
 	if page < 1 {
 		page = 1
@@ -118,7 +112,7 @@ func (r *EnqueuedJobRepository) FetchDueJobs(
 	}
 	defer rows.Close()
 
-	var jobs []task.EnqueuedJob
+	var jobs []models.EnqueuedJob
 	for rows.Next() {
 		job, err := r.mapSqlRowsToJob(rows)
 		if err != nil {
@@ -128,7 +122,7 @@ func (r *EnqueuedJobRepository) FetchDueJobs(
 	}
 
 	totalPages := int(math.Ceil(float64(totalItems) / float64(pageSize)))
-	result := &PaginationResult[task.EnqueuedJob]{
+	result := &models.PaginationResult[models.EnqueuedJob]{
 		Items:           jobs,
 		TotalItems:      totalItems,
 		Page:            page,
@@ -141,7 +135,7 @@ func (r *EnqueuedJobRepository) FetchDueJobs(
 	return result, nil
 }
 
-func (r *EnqueuedJobRepository) LockJob(ctx context.Context, job *task.EnqueuedJob, lockedBy string) (bool, error) {
+func (r *EnqueuedJobRepository) LockJob(ctx context.Context, job *models.EnqueuedJob, lockedBy string) (bool, error) {
 	job.Status = state.StatusProcessing
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
@@ -157,32 +151,49 @@ func (r *EnqueuedJobRepository) LockJob(ctx context.Context, job *task.EnqueuedJ
 	return affected > 0, nil
 }
 
-func (r *EnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int) {
-	r.db.ExecContext(ctx, `
+func (r *EnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int) error {
+	_, err := r.db.ExecContext(ctx, `
  		UPDATE gofire_schema.enqueued_jobs
 		SET status = 'succeeded',
 		    executed_at = NOW(),
 		    finished_at = NOW()
 		WHERE id = $1
 	`, jobID)
+
+	return err
 }
 
-func (r *EnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) {
+func (r *EnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) error {
 	status := state.StatusFailed
 	if attempts+1 >= constants.MaxRetryAttempt {
 		status = state.StatusDead
 	}
-	r.db.ExecContext(ctx, `
+	_, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
 		SET attempts = attempts + 1,
 		    last_error = $2,
 		    status = $3
 		WHERE id = $1
 	`, jobID, errMsg, status)
+
+	return err
 }
 
-func (r *EnqueuedJobRepository) mapSqlRowsToJob(rows *sql.Rows) (*task.EnqueuedJob, error) {
-	var job task.EnqueuedJob
+func (r *EnqueuedJobRepository) UnlockStaleJobs(ctx context.Context, timeout time.Duration) error {
+	_, err := r.db.ExecContext(ctx, `
+        UPDATE gofire_schema.enqueued_jobs
+        SET status = $1, 
+            locked_by = NULL,
+            locked_at = NULL
+        WHERE status = $2 AND locked_at <= NOW()
+    `,
+		state.StatusQueued,
+		state.StatusProcessing)
+	return err
+}
+
+func (r *EnqueuedJobRepository) mapSqlRowsToJob(rows *sql.Rows) (*models.EnqueuedJob, error) {
+	var job models.EnqueuedJob
 	if err := rows.Scan(
 		&job.ID,
 		&job.Name,

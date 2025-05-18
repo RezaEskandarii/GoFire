@@ -13,6 +13,10 @@ const (
 	StatusDead       JobStatus = "dead"
 )
 
+func (s JobStatus) String() string {
+	return string(s)
+}
+
 var AllStatuses = []JobStatus{
 	StatusQueued,
 	StatusProcessing,

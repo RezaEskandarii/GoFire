@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PageSize = 50
+	PageSize = 15
 )
 
 type HttpRouteHandler struct {
@@ -28,7 +28,7 @@ func (handler *HttpRouteHandler) Serve(port int) {
 	handler.handleScheduledJobs()
 
 	addr := fmt.Sprintf(":%d", port)
-	log.Printf("🚀GoFire Server running on %s \n", addr)
+	printBanner(addr)
 	http.ListenAndServe(addr, nil)
 }
 
@@ -69,4 +69,14 @@ func getPageNumber(r *http.Request) int {
 		pageNumber = 1
 	}
 	return int(pageNumber)
+}
+
+func printBanner(addr string) {
+	width := 46
+	fmt.Println("##############################################")
+	fmt.Printf("# %-*s #\n", width-4, "")
+	fmt.Printf("# %-*s #\n", width-4, "GoFire Started")
+	fmt.Printf("# %-*s #\n", width-4, fmt.Sprintf("GoFire Server running on %s", addr))
+	fmt.Printf("# %-*s #\n", width-4, "")
+	fmt.Println("##############################################")
 }

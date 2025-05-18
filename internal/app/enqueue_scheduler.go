@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"gofire/internal/constants"
 	"gofire/internal/db"
+	"gofire/internal/models"
 	"gofire/internal/state"
-	"gofire/internal/task"
 	"golang.org/x/sync/semaphore"
 	"log"
 	"sync"
@@ -46,16 +46,16 @@ func (s *EnqueueScheduler) Enqueue(ctx context.Context, name string, scheduledAt
 	return s.repository.Insert(ctx, name, scheduledAt, args)
 }
 
-func (s *EnqueueScheduler) Schedule(ctx context.Context, name string, cron string, args ...any) (int64, error) {
-	return 0, nil
-}
-
 func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 	enqueueLock := constants.EnqueueLock
 	if err := s.lock.AcquirePostgresDistributedLock(enqueueLock); err != nil {
 		return err
 	}
 	defer s.lock.ReleasePostgresDistributedLock(enqueueLock)
+
+	if err := s.repository.UnlockStaleJobs(ctx, time.Minute*5); err != nil {
+		log.Fatal(err.Error())
+	}
 
 	sem := semaphore.NewWeighted(5)
 	var wg sync.WaitGroup
@@ -87,7 +87,7 @@ func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 				}
 				wg.Add(1)
 
-				go func(job task.EnqueuedJob) {
+				go func(job models.EnqueuedJob) {
 					defer sem.Release(1)
 					defer wg.Done()
 
@@ -109,7 +109,7 @@ func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 				}(job)
 			}
 
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}
 }

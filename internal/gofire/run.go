@@ -22,6 +22,7 @@ type Config struct {
 	DashboardUserName    string
 	DashboardPassword    string
 	Instance             string
+	EnableDashboard      bool
 	Handlers             []MethodHandler
 }
 
@@ -50,8 +51,10 @@ func Run(ctx context.Context, config Config) error {
 
 	go enqueueScheduler.ProcessEnqueues(ctx)
 
-	router := web.NewRouteHandler(enqueuedJobRepository)
-	router.Serve(config.DashboardPort)
+	if config.EnableDashboard {
+		router := web.NewRouteHandler(enqueuedJobRepository)
+		router.Serve(config.DashboardPort)
+	}
 
 	return nil
 }

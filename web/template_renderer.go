@@ -2,17 +2,48 @@ package web
 
 import (
 	"fmt"
+	"gofire/internal/state"
 	"html/template"
 	"net/http"
 )
 
-var (
-	baseTmpl = template.Must(template.ParseFiles("web/templates/layout.html"))
-)
-
 func render(w http.ResponseWriter, tmplName string, data any) {
-	cloned, _ := baseTmpl.Clone()
-	fileName := fmt.Sprintf("web/templates/%s.html", tmplName)
-	cloned = template.Must(cloned.ParseFiles(fileName))
-	cloned.ExecuteTemplate(w, "layout.html", data)
+	funcMap := template.FuncMap{
+		"StatusBadgeClass": StatusBadgeClass,
+	}
+
+	tmpl := template.New("layout.html").Funcs(funcMap)
+
+	tmpl = template.Must(tmpl.ParseFiles(
+		"web/templates/layout.html",
+		fmt.Sprintf("web/templates/%s.html", tmplName),
+	))
+
+	err := tmpl.ExecuteTemplate(w, "layout.html", data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func StatusBadgeClass(status state.JobStatus) string {
+	switch status {
+	case state.StatusQueued:
+		return "badge bg-info"
+	case state.StatusProcessing:
+		return "badge bg-primary"
+	case state.StatusSucceeded:
+		return "badge bg-success"
+	case state.StatusFailed:
+		return "badge bg-danger"
+	case state.StatusRetrying:
+		return "badge bg-warning"
+	case state.StatusCancelled:
+		return "badge bg-secondary"
+	case state.StatusExpired:
+		return "badge bg-warning"
+	case state.StatusDead:
+		return "badge bg-dark"
+	default:
+		return "badge bg-light text-dark"
+	}
 }
