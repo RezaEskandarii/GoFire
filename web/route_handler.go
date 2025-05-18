@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"gofire/internal/db"
+	"gofire/internal/repository"
 	"gofire/internal/state"
 	"log"
 	"net/http"
@@ -14,10 +14,10 @@ const (
 )
 
 type HttpRouteHandler struct {
-	repository db.EnqueuedJobRepository
+	repository repository.EnqueuedJobRepository
 }
 
-func NewRouteHandler(repository db.EnqueuedJobRepository) HttpRouteHandler {
+func NewRouteHandler(repository repository.EnqueuedJobRepository) HttpRouteHandler {
 	return HttpRouteHandler{
 		repository: repository,
 	}

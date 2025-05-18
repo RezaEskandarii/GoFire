@@ -6,6 +6,8 @@ import (
 	_ "github.com/lib/pq"
 	"gofire/internal/app"
 	"gofire/internal/db"
+	"gofire/internal/lock"
+	"gofire/internal/repository"
 	"gofire/web"
 	"log"
 )
@@ -24,9 +26,10 @@ type Config struct {
 	Instance             string
 	EnableDashboard      bool
 	Handlers             []MethodHandler
+	Driver               DatabaseDriver
 }
 
-func (c Config) AddHandler(handler MethodHandler) Config {
+func (c Config) RegisterHandler(handler MethodHandler) Config {
 	c.Handlers = append(c.Handlers, handler)
 	return c
 }
@@ -40,10 +43,10 @@ func Run(ctx context.Context, config Config) error {
 		return err
 	}
 
-	enqueuedJobRepository := db.NewJobRepository(sqlDB)
-	lock := db.NewLock(sqlDB)
+	enqueuedJobRepository := repository.NewPostgresEnqueuedJobRepository(sqlDB)
+	distributedLock := lock.NewPostgresDistributedLockManager(sqlDB)
 
-	enqueueScheduler := app.NewScheduler(enqueuedJobRepository, lock, config.Instance)
+	enqueueScheduler := app.NewScheduler(&enqueuedJobRepository, &distributedLock, config.Instance)
 
 	for _, handler := range config.Handlers {
 		enqueueScheduler.RegisterHandler(handler.MethodName, handler.Func)
@@ -52,7 +55,7 @@ func Run(ctx context.Context, config Config) error {
 	go enqueueScheduler.ProcessEnqueues(ctx)
 
 	if config.EnableDashboard {
-		router := web.NewRouteHandler(enqueuedJobRepository)
+		router := web.NewRouteHandler(&enqueuedJobRepository)
 		router.Serve(config.DashboardPort)
 	}
 

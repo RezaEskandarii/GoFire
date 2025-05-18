@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"gofire/internal/constants"
-	"gofire/internal/db"
+	"gofire/internal/lock"
 	"gofire/internal/models"
+	"gofire/internal/repository"
 	"gofire/internal/state"
 	"golang.org/x/sync/semaphore"
 	"log"
@@ -15,13 +16,13 @@ import (
 )
 
 type EnqueueScheduler struct {
-	repository db.EnqueuedJobRepository
+	repository repository.EnqueuedJobRepository
 	instance   string
-	lock       db.Lock
+	lock       lock.DistributedLockManager
 	handlers   map[string]func([]interface{}) error
 }
 
-func NewScheduler(repository db.EnqueuedJobRepository, lock db.Lock, instance string) EnqueueScheduler {
+func NewScheduler(repository repository.EnqueuedJobRepository, lock lock.DistributedLockManager, instance string) EnqueueScheduler {
 	return EnqueueScheduler{
 		repository: repository,
 		instance:   instance,
@@ -48,10 +49,10 @@ func (s *EnqueueScheduler) Enqueue(ctx context.Context, name string, scheduledAt
 
 func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 	enqueueLock := constants.EnqueueLock
-	if err := s.lock.AcquirePostgresDistributedLock(enqueueLock); err != nil {
+	if err := s.lock.Acquire(enqueueLock); err != nil {
 		return err
 	}
-	defer s.lock.ReleasePostgresDistributedLock(enqueueLock)
+	defer s.lock.Release(enqueueLock)
 
 	if err := s.repository.UnlockStaleJobs(ctx, time.Minute*5); err != nil {
 		log.Fatal(err.Error())

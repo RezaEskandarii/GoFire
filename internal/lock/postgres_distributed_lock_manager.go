@@ -1,4 +1,4 @@
-package db
+package lock
 
 import (
 	"context"
@@ -7,17 +7,17 @@ import (
 	"time"
 )
 
-type Lock struct {
+type PostgresDistributedLockManager struct {
 	db *sql.DB
 }
 
-func NewLock(db *sql.DB) Lock {
-	return Lock{
+func NewPostgresDistributedLockManager(db *sql.DB) PostgresDistributedLockManager {
+	return PostgresDistributedLockManager{
 		db: db,
 	}
 }
 
-func (l *Lock) AcquirePostgresDistributedLock(lockID int) error {
+func (l *PostgresDistributedLockManager) Acquire(lockID int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -29,7 +29,7 @@ func (l *Lock) AcquirePostgresDistributedLock(lockID int) error {
 	return nil
 }
 
-func (l *Lock) ReleasePostgresDistributedLock(lockID int) error {
+func (l *PostgresDistributedLockManager) Release(lockID int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

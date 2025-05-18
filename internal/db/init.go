@@ -5,6 +5,7 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	"gofire/internal/constants"
+	"gofire/internal/lock"
 	"os"
 	"path/filepath"
 )
@@ -21,12 +22,12 @@ func Init(postgresURL string) error {
 	}
 
 	migrationLock := constants.MigrationLock
-	lock := NewLock(db)
+	distributedLock := lock.NewPostgresDistributedLockManager(db)
 
-	if err = lock.AcquirePostgresDistributedLock(migrationLock); err != nil {
+	if err = distributedLock.Acquire(migrationLock); err != nil {
 		return err
 	}
-	defer lock.ReleasePostgresDistributedLock(migrationLock)
+	defer distributedLock.Release(migrationLock)
 
 	if err = db.Ping(); err != nil {
 		return err
