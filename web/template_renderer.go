@@ -12,7 +12,7 @@ var (
 
 func render(w http.ResponseWriter, tmplName string, data any) {
 	cloned, _ := baseTmpl.Clone()
-	fileName := fmt.Sprintf("web/%s.html", tmplName)
+	fileName := fmt.Sprintf("web/templates/%s.html", tmplName)
 	cloned = template.Must(cloned.ParseFiles(fileName))
 	cloned.ExecuteTemplate(w, "layout.html", data)
 }

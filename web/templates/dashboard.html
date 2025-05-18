@@ -10,32 +10,70 @@
             </div>
         </div>
     </div>
-    <!-- سایر کارت‌ها هم به همین صورت -->
 </div>
 
-<canvas id="jobsChart" height="100" class="mt-4"></canvas>
+<h1>Queued Jobs</h1>
+<div class="row">
+    <div class="col-md-3">
+        <label>Status</label>
+        <form action="/">
+            <select name="status" class="form-control" onchange="this.form.submit()">
+                <option value="">---all---</option>
+                {{range .Statuses}}
+                <option value="{{.}}" {{if eq . $.CurrentStatus}}selected{{end}}>{{.}}</option>
+                {{end}}
+            </select>
+        </form>
+    </div>
+</div>
+<br>
+<div class="row">
+    <div class="col-md-12">
+        <div class="responsive-table">
+            <table class="table table-bordered">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Scheduled At</th>
+                    <th>Last Error</th>
+                    <th>Payload</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{ range .Items }}
+                <tr>
+                    <td>{{ .ID }}</td>
+                    <td>{{ .Name }}</td>
+                    <td>{{ .Status }}</td>
+                    <td>{{ .Attempts }}/{{ .MaxAttempts }}</td>
+                    <td>{{ .ScheduledAt.Format "2006-01-02 15:04:05" }}</td>
+                    <td>{{ if .LastError }}{{ .LastError }}{{ else }}-{{ end }}</td>
+                    <td><pre>{{ printf "%s" .Payload }}</pre></td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-<script>
-    const ctx = document.getElementById('jobsChart');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: {{.Labels}},
-    datasets: [
-        {
-            label: 'Succeeded',
-            data: {{.SucceededData}},
-    borderColor: 'green',
-        tension: 0.3
-    },
-    {
-        label: 'Failed',
-            data: {{.FailedData}},
-        borderColor: 'red',
-            tension: 0.3
-    }
-    ]
-    }
-    });
-</script>
+
+<div>
+    Page {{ .Page }} of {{ .TotalPages }} ({{ .TotalItems }} jobs)
+</div>
+
+<div class="pagination">
+    {{ if .HasPreviousPage }}
+    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'prev')" data-page="{{ .Page }}">« Previous</a>
+    {{ end }}
+    &nbsp;
+    {{ if .HasNextPage }}
+    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'next')" data-page="{{ .Page }}">Next »</a>
+    {{ end }}
+</div>
+<br>
+<br>
 {{end}}

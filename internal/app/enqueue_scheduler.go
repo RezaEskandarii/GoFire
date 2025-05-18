@@ -14,15 +14,15 @@ import (
 	"time"
 )
 
-type Scheduler struct {
+type EnqueueScheduler struct {
 	repository db.EnqueuedJobRepository
 	instance   string
 	lock       db.Lock
 	handlers   map[string]func([]interface{}) error
 }
 
-func NewScheduler(repository db.EnqueuedJobRepository, lock db.Lock, instance string) Scheduler {
-	return Scheduler{
+func NewScheduler(repository db.EnqueuedJobRepository, lock db.Lock, instance string) EnqueueScheduler {
+	return EnqueueScheduler{
 		repository: repository,
 		instance:   instance,
 		lock:       lock,
@@ -30,11 +30,11 @@ func NewScheduler(repository db.EnqueuedJobRepository, lock db.Lock, instance st
 	}
 }
 
-func (s *Scheduler) RegisterHandler(name string, fn func([]interface{}) error) {
+func (s *EnqueueScheduler) RegisterHandler(name string, fn func([]interface{}) error) {
 	s.handlers[name] = fn
 }
 
-func (s *Scheduler) GetHandler(name string) (func([]interface{}) error, error) {
+func (s *EnqueueScheduler) GetHandler(name string) (func([]interface{}) error, error) {
 	fn, ok := s.handlers[name]
 	if !ok {
 		return nil, fmt.Errorf("handler not found: %s", name)
@@ -42,15 +42,15 @@ func (s *Scheduler) GetHandler(name string) (func([]interface{}) error, error) {
 	return fn, nil
 }
 
-func (s *Scheduler) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args []interface{}) (int64, error) {
+func (s *EnqueueScheduler) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args []interface{}) (int64, error) {
 	return s.repository.Insert(ctx, name, scheduledAt, args)
 }
 
-func (s *Scheduler) Schedule(ctx context.Context, name string, cron string, args ...any) (int64, error) {
+func (s *EnqueueScheduler) Schedule(ctx context.Context, name string, cron string, args ...any) (int64, error) {
 	return 0, nil
 }
 
-func (s *Scheduler) ProcessEnqueues(ctx context.Context) error {
+func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 	enqueueLock := constants.EnqueueLock
 	if err := s.lock.AcquirePostgresDistributedLock(enqueueLock); err != nil {
 		return err
@@ -66,15 +66,18 @@ func (s *Scheduler) ProcessEnqueues(ctx context.Context) error {
 			wg.Wait()
 			return ctx.Err()
 		default:
-			jobs, err := s.repository.FetchDueJobs(ctx, 100)
+			now := time.Now()
+			status := state.StatusQueued
+			jobsList, err := s.repository.FetchDueJobs(ctx, 1, 100, &status, &now)
 			if err != nil {
 				log.Println("fetch error:", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
+			jobs := jobsList.Items
 
 			for _, job := range jobs {
-				ok, err := s.repository.LockJob(ctx, job.ID, s.instance)
+				ok, err := s.repository.LockJob(ctx, &job, s.instance)
 				if err != nil || !ok {
 					continue
 				}

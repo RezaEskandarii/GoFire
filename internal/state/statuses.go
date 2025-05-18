@@ -13,6 +13,17 @@ const (
 	StatusDead       JobStatus = "dead"
 )
 
+var AllStatuses = []JobStatus{
+	StatusQueued,
+	StatusProcessing,
+	StatusSucceeded,
+	StatusFailed,
+	StatusRetrying,
+	StatusCancelled,
+	StatusExpired,
+	StatusDead,
+}
+
 type Transition struct {
 	From JobStatus
 	To   JobStatus
