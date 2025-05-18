@@ -16,8 +16,8 @@ type PostgresEnqueuedJobRepository struct {
 	db *sql.DB
 }
 
-func NewPostgresEnqueuedJobRepository(db *sql.DB) PostgresEnqueuedJobRepository {
-	return PostgresEnqueuedJobRepository{
+func NewPostgresEnqueuedJobRepository(db *sql.DB) *PostgresEnqueuedJobRepository {
+	return &PostgresEnqueuedJobRepository{
 		db: db,
 	}
 }

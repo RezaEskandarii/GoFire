@@ -3,13 +3,11 @@ package gofire
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 	"gofire/internal/app"
-	"gofire/internal/db"
-	"gofire/internal/lock"
-	"gofire/internal/repository"
 	"gofire/web"
-	"log"
 )
 
 type MethodHandler struct {
@@ -18,7 +16,7 @@ type MethodHandler struct {
 }
 
 type Config struct {
-	PostgresConnection   string
+	Connection           string
 	DashboardPort        int
 	DashboardAuthEnabled bool
 	DashboardUserName    string
@@ -26,7 +24,7 @@ type Config struct {
 	Instance             string
 	EnableDashboard      bool
 	Handlers             []MethodHandler
-	Driver               DatabaseDriver
+	Driver               StorageDriver
 }
 
 func (c Config) RegisterHandler(handler MethodHandler) Config {
@@ -35,37 +33,35 @@ func (c Config) RegisterHandler(handler MethodHandler) Config {
 }
 
 func Run(ctx context.Context, config Config) error {
-	sqlDB := setupDB(config.PostgresConnection)
-	defer sqlDB.Close()
+	var sqlDB *sql.DB
+	var redisClient *redis.Client
 
-	if err := db.Init(config.PostgresConnection); err != nil {
-		log.Println(err)
-		return err
+	switch config.Driver {
+	case Postgres:
+		sqlDB = setupPostgres(config.Connection)
+		defer sqlDB.Close()
+	case Redis:
+		redisClient = setupRedis(ctx, config.Connection)
+		defer redisClient.Close()
+	default:
+		return fmt.Errorf("unsupported driver: %v", config.Driver)
 	}
 
-	enqueuedJobRepository := repository.NewPostgresEnqueuedJobRepository(sqlDB)
-	distributedLock := lock.NewPostgresDistributedLockManager(sqlDB)
+	repo := NewEnqueuedJobRepository(config.Driver, sqlDB, redisClient)
+	lockMgr := NewDistributedLockManager(config.Driver, sqlDB, redisClient)
 
-	enqueueScheduler := app.NewScheduler(&enqueuedJobRepository, &distributedLock, config.Instance)
+	scheduler := app.NewScheduler(repo, lockMgr, config.Instance)
 
 	for _, handler := range config.Handlers {
-		enqueueScheduler.RegisterHandler(handler.MethodName, handler.Func)
+		scheduler.RegisterHandler(handler.MethodName, handler.Func)
 	}
 
-	go enqueueScheduler.ProcessEnqueues(ctx)
+	go scheduler.ProcessEnqueues(ctx)
 
 	if config.EnableDashboard {
-		router := web.NewRouteHandler(&enqueuedJobRepository)
+		router := web.NewRouteHandler(repo)
 		router.Serve(config.DashboardPort)
 	}
 
 	return nil
-}
-
-func setupDB(connStr string) *sql.DB {
-	sqlDB, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal("Database connection failed:", err)
-	}
-	return sqlDB
 }

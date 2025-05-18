@@ -1,8 +1,8 @@
 package gofire
 
-type DatabaseDriver int
+type StorageDriver int
 
 const (
-	Postgres DatabaseDriver = 1
-	Redis    DatabaseDriver = 2
+	Postgres StorageDriver = iota + 1
+	Redis
 )

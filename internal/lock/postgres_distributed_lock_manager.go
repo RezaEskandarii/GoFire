@@ -11,8 +11,8 @@ type PostgresDistributedLockManager struct {
 	db *sql.DB
 }
 
-func NewPostgresDistributedLockManager(db *sql.DB) PostgresDistributedLockManager {
-	return PostgresDistributedLockManager{
+func NewPostgresDistributedLockManager(db *sql.DB) *PostgresDistributedLockManager {
+	return &PostgresDistributedLockManager{
 		db: db,
 	}
 }
