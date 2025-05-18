@@ -1,0 +1,41 @@
+{{define "content"}}
+<h1>Dashboard</h1>
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Succeeded</h5>
+                <p class="card-text fs-4">{{.Succeeded}}</p>
+            </div>
+        </div>
+    </div>
+    <!-- سایر کارت‌ها هم به همین صورت -->
+</div>
+
+<canvas id="jobsChart" height="100" class="mt-4"></canvas>
+
+<script>
+    const ctx = document.getElementById('jobsChart');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{.Labels}},
+    datasets: [
+        {
+            label: 'Succeeded',
+            data: {{.SucceededData}},
+    borderColor: 'green',
+        tension: 0.3
+    },
+    {
+        label: 'Failed',
+            data: {{.FailedData}},
+        borderColor: 'red',
+            tension: 0.3
+    }
+    ]
+    }
+    });
+</script>
+{{end}}

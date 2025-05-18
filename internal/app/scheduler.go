@@ -1,6 +1,5 @@
 package app
 
-// go get golang.org/x/sync/semaphore
 import (
 	"context"
 	"encoding/json"
@@ -16,13 +15,13 @@ import (
 )
 
 type Scheduler struct {
-	repository db.JobRepository
+	repository db.EnqueuedJobRepository
 	instance   string
 	lock       db.Lock
 	handlers   map[string]func([]interface{}) error
 }
 
-func NewScheduler(repository db.JobRepository, lock db.Lock, instance string) Scheduler {
+func NewScheduler(repository db.EnqueuedJobRepository, lock db.Lock, instance string) Scheduler {
 	return Scheduler{
 		repository: repository,
 		instance:   instance,

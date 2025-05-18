@@ -10,17 +10,17 @@ import (
 	"time"
 )
 
-type JobRepository struct {
+type EnqueuedJobRepository struct {
 	db *sql.DB
 }
 
-func NewJobRepository(db *sql.DB) JobRepository {
-	return JobRepository{
+func NewJobRepository(db *sql.DB) EnqueuedJobRepository {
+	return EnqueuedJobRepository{
 		db: db,
 	}
 }
 
-func (r *JobRepository) Insert(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}) (int64, error) {
+func (r *EnqueuedJobRepository) Insert(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}) (int64, error) {
 
 	payloadJSON, err := json.Marshal(args)
 	if err != nil {
@@ -47,7 +47,7 @@ func (r *JobRepository) Insert(ctx context.Context, jobName string, scheduledAt 
 
 }
 
-func (r *JobRepository) FetchDueJobs(ctx context.Context, limit int) ([]task.EnqueuedJob, error) {
+func (r *EnqueuedJobRepository) FetchDueJobs(ctx context.Context, limit int) ([]task.EnqueuedJob, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, name, payload, attempts, max_attempts
 		FROM gofire_schema.enqueued_jobs
@@ -72,7 +72,7 @@ func (r *JobRepository) FetchDueJobs(ctx context.Context, limit int) ([]task.Enq
 	return jobs, nil
 }
 
-func (r *JobRepository) LockJob(ctx context.Context, jobID int, lockedBy string) (bool, error) {
+func (r *EnqueuedJobRepository) LockJob(ctx context.Context, jobID int, lockedBy string) (bool, error) {
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
 		SET locked_at = NOW(), locked_by = $1, status = 'processing'
@@ -85,7 +85,7 @@ func (r *JobRepository) LockJob(ctx context.Context, jobID int, lockedBy string)
 	return affected > 0, nil
 }
 
-func (r *JobRepository) MarkSuccess(ctx context.Context, jobID int) {
+func (r *EnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int) {
 	r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
 		SET status = 'succeeded', executed_at = NOW(), finished_at = NOW()
@@ -93,7 +93,7 @@ func (r *JobRepository) MarkSuccess(ctx context.Context, jobID int) {
 	`, jobID)
 }
 
-func (r *JobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) {
+func (r *EnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) {
 	status := state.StatusFailed
 	if attempts+1 >= constants.MaxRetryAttempt {
 		status = state.StatusDead
