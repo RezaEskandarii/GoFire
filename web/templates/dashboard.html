@@ -5,12 +5,13 @@
 <br>
 <div class="row">
     <div class="col-md-3">
-        <div class="card text-white bg-success">
+        {{range $key, $value := .JobsCount}}
+        <div class="card status-card text-white {{ StatusBgClass $key }}">
             <div class="card-body">
-                <h5 class="card-title">Succeeded</h5>
-                <p class="card-text fs-4">{{.Succeeded}}</p>
+                <h5 class="card-title">{{$key}}: {{$value}}</h5>
             </div>
         </div>
+        {{end}}
     </div>
     <div class="col-md-9">
         <div class="row">

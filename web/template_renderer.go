@@ -10,6 +10,7 @@ import (
 func render(w http.ResponseWriter, tmplName string, data any) {
 	funcMap := template.FuncMap{
 		"StatusBadgeClass": StatusBadgeClass,
+		"StatusBgClass":    StatusBgClass,
 	}
 
 	tmpl := template.New("layout.html").Funcs(funcMap)
@@ -45,5 +46,28 @@ func StatusBadgeClass(status state.JobStatus) string {
 		return "badge bg-dark"
 	default:
 		return "badge bg-light text-dark"
+	}
+}
+
+func StatusBgClass(status state.JobStatus) string {
+	switch status {
+	case state.StatusQueued:
+		return " bg-info"
+	case state.StatusProcessing:
+		return " bg-primary"
+	case state.StatusSucceeded:
+		return " bg-success"
+	case state.StatusFailed:
+		return " bg-danger"
+	case state.StatusRetrying:
+		return " bg-warning"
+	case state.StatusCancelled:
+		return " bg-secondary"
+	case state.StatusExpired:
+		return " bg-warning"
+	case state.StatusDead:
+		return " bg-dark"
+	default:
+		return " bg-light text-dark"
 	}
 }

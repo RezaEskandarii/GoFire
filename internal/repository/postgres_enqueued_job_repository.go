@@ -208,8 +208,8 @@ func (r *PostgresEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, s
 	return count, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.Context, db *sql.DB) (map[state.JobStatus]int, error) {
-	rows, err := db.QueryContext(ctx, `
+func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+	rows, err := r.db.QueryContext(ctx, `
 		SELECT status, COUNT(*) AS count
 		FROM gofire_schema.enqueued_jobs
 		GROUP BY status
@@ -227,6 +227,12 @@ func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.
 			return nil, err
 		}
 		result[status] = count
+	}
+
+	for _, status := range state.AllStatuses {
+		if _, ok := result[status]; !ok {
+			result[status] = 0
+		}
 	}
 
 	return result, nil

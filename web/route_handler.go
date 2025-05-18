@@ -42,10 +42,12 @@ func (handler *HttpRouteHandler) handleDashboard() {
 			log.Println(err)
 		}
 
-		allJobsCount
+		allJobsCount, _ := handler.repository.CountAllJobsGroupedByStatus(r.Context())
+
 		data := NewPaginatedDataMap(*jobs).
 			Add("Statuses", state.AllStatuses).
-			Add("CurrentStatus", status)
+			Add("CurrentStatus", status).
+			Add("JobsCount", allJobsCount)
 
 		render(w, "dashboard", data.Data)
 	})
