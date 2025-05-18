@@ -14,4 +14,6 @@ type EnqueuedJobRepository interface {
 	MarkSuccess(ctx context.Context, jobID int) error
 	MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) error
 	UnlockStaleJobs(ctx context.Context, timeout time.Duration) error
+	CountJobsByStatus(ctx context.Context, status state.JobStatus) (int, error)
+	CountAllJobsByStatus(ctx context.Context) (map[state.JobStatus]int, error)
 }

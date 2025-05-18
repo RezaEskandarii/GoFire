@@ -8,6 +8,7 @@ import (
 	"gofire/internal/constants"
 	"gofire/internal/models"
 	"gofire/internal/state"
+	"log"
 	"math"
 	"time"
 )
@@ -190,6 +191,35 @@ func (r *PostgresEnqueuedJobRepository) UnlockStaleJobs(ctx context.Context, tim
 		state.StatusQueued,
 		state.StatusProcessing)
 	return err
+}
+
+func (r *PostgresEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, status state.JobStatus) (int, error) {
+	query := `
+		SELECT COUNT(*) 
+		FROM gofire_schema.enqueued_jobs
+		WHERE status = $1;
+	`
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, status).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *PostgresEnqueuedJobRepository) CountAllJobsByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+	result := map[state.JobStatus]int{}
+	for _, status := range state.AllStatuses {
+		count, err := r.CountJobsByStatus(ctx, status)
+		if err != nil {
+			log.Printf("Error counting %s: %v\n", status, err)
+			continue
+		}
+		result[status] = count
+	}
+	return result, nil
 }
 
 func (r *PostgresEnqueuedJobRepository) mapSqlRowsToJob(rows *sql.Rows) (*models.EnqueuedJob, error) {
