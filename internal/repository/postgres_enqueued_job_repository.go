@@ -54,6 +54,52 @@ func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName stri
 
 }
 
+func (r *PostgresEnqueuedJobRepository) FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error) {
+	query := `
+		SELECT id,
+		       name,
+		       payload,
+		       status,
+		       attempts,
+		       max_attempts,
+		       scheduled_at,
+		       executed_at,
+		       finished_at,
+		       last_error,
+		       locked_by,
+		       locked_at,
+		       created_at
+		FROM gofire_schema.enqueued_jobs
+		WHERE id = $1
+	`
+
+	row, err := r.db.QueryContext(ctx, query, id)
+	job, err := r.mapSqlRowsToJob(row)
+	if err != nil {
+		return nil, fmt.Errorf("job with ID %d not found: %w", id, err)
+	}
+	return job, nil
+}
+
+func (r *PostgresEnqueuedJobRepository) RemoveByID(ctx context.Context, jobID int64) error {
+	query := `DELETE FROM gofire_schema.enqueued_jobs WHERE id = $1`
+
+	result, err := r.db.ExecContext(ctx, query, jobID)
+	if err != nil {
+		return fmt.Errorf("failed to delete job %d: %w", jobID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("no job found with id %d", jobID)
+	}
+
+	return nil
+}
+
 func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 	ctx context.Context,
 	page int,

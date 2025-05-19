@@ -114,6 +114,36 @@ func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context, interval, worker
 	}
 }
 
+func (s *EnqueueScheduler) ExecuteJobManually(ctx context.Context, jobID int64) error {
+	job, err := s.repository.FindByID(ctx, jobID)
+	if err != nil {
+		return fmt.Errorf("job not found: %w", err)
+	}
+
+	handler, err := s.GetHandler(job.Name)
+	if err != nil {
+		return fmt.Errorf("handler not found: %w", err)
+	}
+
+	var args []interface{}
+	if err := json.Unmarshal(job.Payload, &args); err != nil {
+		return fmt.Errorf("invalid payload: %w", err)
+	}
+
+	err = handler(args)
+	status := s.errorToJobStatus(err)
+
+	s.jobResults <- JobResult{
+		JobID:       job.ID,
+		Err:         err,
+		Attempts:    job.Attempts + 1,
+		MaxAttempts: job.MaxAttempts,
+		Status:      status,
+	}
+
+	return nil
+}
+
 func (s *EnqueueScheduler) startResultProcessor(ctx context.Context) {
 	go func() {
 		for {
@@ -165,6 +195,7 @@ func (s *EnqueueScheduler) processDueJobs(ctx context.Context, sem *semaphore.We
 		go s.handleJob(ctx, sem, wg, job)
 	}
 }
+
 func (s *EnqueueScheduler) handleJob(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, job models.EnqueuedJob) {
 	defer func() {
 		if r := recover(); r != nil {

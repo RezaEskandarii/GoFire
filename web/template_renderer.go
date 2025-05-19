@@ -38,8 +38,7 @@ func StatusBadgeClass(status state.JobStatus) string {
 		return "badge bg-danger"
 	case state.StatusRetrying:
 		return "badge bg-warning"
-	case state.StatusCancelled:
-		return "badge bg-secondary"
+
 	case state.StatusDead:
 		return "badge bg-dark"
 	default:
@@ -59,8 +58,6 @@ func StatusBgClass(status state.JobStatus) string {
 		return " bg-danger"
 	case state.StatusRetrying:
 		return " bg-warning"
-	case state.StatusCancelled:
-		return " bg-secondary"
 	case state.StatusDead:
 		return " bg-dark"
 	default:

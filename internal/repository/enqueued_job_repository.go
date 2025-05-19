@@ -8,6 +8,8 @@ import (
 )
 
 type EnqueuedJobRepository interface {
+	FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error)
+	RemoveByID(ctx context.Context, jobID int64) error
 	Insert(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}) (int64, error)
 	FetchDueJobs(ctx context.Context, page int, pageSize int, statuses []state.JobStatus, scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error)
 	LockJob(ctx context.Context, job *models.EnqueuedJob, lockedBy string) (bool, error)
