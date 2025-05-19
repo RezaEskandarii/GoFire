@@ -4,5 +4,9 @@ const (
 	MigrationLock = iota
 	EnqueueLock
 	ScheduleLock
-	MaxRetryAttempt
+	RetryLock
+)
+
+const (
+	MaxRetryAttempt = 3
 )

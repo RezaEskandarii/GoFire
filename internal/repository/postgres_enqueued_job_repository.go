@@ -9,6 +9,7 @@ import (
 	"gofire/internal/models"
 	"gofire/internal/state"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -35,9 +36,9 @@ func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName stri
             payload, 
             scheduled_at, 
             max_attempts,
-            created_at
+            created_at                                      
         )
-        VALUES ($1, $2, $3, $4, now())
+        VALUES ($1, $2, $3, $4,now())
         returning id
     `
 
@@ -46,17 +47,18 @@ func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName stri
 		jobName,
 		payloadJSON,
 		scheduledAt,
-		0,
+		constants.MaxRetryAttempt,
 	).Scan(&jobID)
 
 	return jobID, err
 
 }
+
 func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 	ctx context.Context,
 	page int,
 	pageSize int,
-	status *state.JobStatus,
+	statuses []state.JobStatus,
 	scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error) {
 
 	if page < 1 {
@@ -70,31 +72,25 @@ func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 
 	if scheduledBefore != nil {
 		where += fmt.Sprintf(" AND scheduled_at <= $%d", argIndex)
-		args = append(args, scheduledBefore.Format("2006-01-02"))
+		args = append(args, scheduledBefore)
 		argIndex++
 	}
 
-	if status != nil && *status != "" {
-		where += fmt.Sprintf(" AND status = $%d", argIndex)
-		args = append(args, *status)
-		argIndex++
+	if len(statuses) > 0 {
+		placeholders := []string{}
+		for _, s := range statuses {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argIndex))
+			args = append(args, s)
+			argIndex++
+		}
+		where += " AND status IN (" + strings.Join(placeholders, ", ") + ")"
 	}
 
 	countQuery := `SELECT COUNT(*) FROM gofire_schema.enqueued_jobs WHERE ` + where
 	selectQuery := `
-		SELECT id,
-		       name, 
-		       payload, 
-		       status,
-		       attempts,
-		       max_attempts,
-		       scheduled_at, 
-		       executed_at,
-		       finished_at,
-		       last_error,
-		       locked_by,
-		       locked_at, 
-		       created_at
+		SELECT id, name, payload, status, attempts, max_attempts,
+		       scheduled_at, executed_at, finished_at, last_error,
+		       locked_by, locked_at, created_at
 		FROM gofire_schema.enqueued_jobs
 		WHERE ` + where + fmt.Sprintf(" ORDER BY scheduled_at ASC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 
@@ -135,15 +131,35 @@ func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 	return result, nil
 }
 
+func (r *PostgresEnqueuedJobRepository) MarkRetryFailedJobs(ctx context.Context) error {
+	query := `
+		UPDATE gofire_schema.enqueued_jobs
+		SET 
+			status = $1,
+			scheduled_at = NOW() + INTERVAL '1 minute'
+		WHERE id IN (
+			SELECT id FROM gofire_schema.enqueued_jobs
+			WHERE 
+				status = $2
+				AND attempts < max_attempts
+			ORDER BY scheduled_at ASC
+		)
+	`
+
+	_, err := r.db.ExecContext(ctx, query, state.StatusRetrying, state.StatusFailed)
+	return err
+}
+
 func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, job *models.EnqueuedJob, lockedBy string) (bool, error) {
 	job.Status = state.StatusProcessing
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
 		SET locked_at = NOW(), 
+		    executed_at = NOW(),
 		    locked_by = $1,
-		    status = 'processing'
-		WHERE id = $2 AND status = 'queued'
-	`, lockedBy, job.ID)
+		    status = $2
+		WHERE id = $3 AND (status = $4 OR status = $5)
+	`, lockedBy, state.StatusProcessing, job.ID, state.StatusQueued, state.StatusRetrying)
 	if err != nil {
 		return false, err
 	}
@@ -155,7 +171,6 @@ func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID i
 	_, err := r.db.ExecContext(ctx, `
  		UPDATE gofire_schema.enqueued_jobs
 		SET status = 'succeeded',
-		    executed_at = NOW(),
 		    finished_at = NOW()
 		WHERE id = $1
 	`, jobID)
@@ -165,7 +180,7 @@ func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID i
 
 func (r *PostgresEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string, attempts int, maxAttempts int) error {
 	status := state.StatusFailed
-	if attempts+1 >= constants.MaxRetryAttempt {
+	if attempts >= constants.MaxRetryAttempt {
 		status = state.StatusDead
 	}
 	_, err := r.db.ExecContext(ctx, `

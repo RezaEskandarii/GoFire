@@ -36,8 +36,8 @@ func (handler *HttpRouteHandler) handleDashboard() {
 		pageNumber := getPageNumber(r)
 		statusParam := r.URL.Query().Get("status")
 		status := state.JobStatus(statusParam)
-
-		jobs, err := handler.repository.FetchDueJobs(r.Context(), pageNumber, PageSize, &status, nil)
+		statuses := []state.JobStatus{status}
+		jobs, err := handler.repository.FetchDueJobs(r.Context(), pageNumber, PageSize, statuses, nil)
 		if err != nil {
 			log.Println(err)
 		}

@@ -9,7 +9,6 @@ const (
 	StatusFailed     JobStatus = "failed"
 	StatusRetrying   JobStatus = "retrying"
 	StatusCancelled  JobStatus = "cancelled"
-	StatusExpired    JobStatus = "expired"
 	StatusDead       JobStatus = "dead"
 )
 
@@ -24,7 +23,6 @@ var AllStatuses = []JobStatus{
 	StatusFailed,
 	StatusRetrying,
 	StatusCancelled,
-	StatusExpired,
 	StatusDead,
 }
 

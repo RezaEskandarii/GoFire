@@ -32,13 +32,16 @@ type EnqueueScheduler struct {
 }
 
 func NewScheduler(repository repository.EnqueuedJobRepository, lock lock.DistributedLockManager, instance string) EnqueueScheduler {
-	return EnqueueScheduler{
+	scheduler := EnqueueScheduler{
 		repository: repository,
 		instance:   instance,
 		lock:       lock,
 		handlers:   make(map[string]func([]interface{}) error),
 		jobResults: make(chan JobResult, 1000),
 	}
+
+	go scheduler.MarkRetryFailedJobs(context.Background())
+	return scheduler
 }
 
 func (s *EnqueueScheduler) RegisterHandler(name string, fn func([]interface{}) error) {
@@ -54,10 +57,36 @@ func (s *EnqueueScheduler) GetHandler(name string) (func([]interface{}) error, e
 }
 
 func (s *EnqueueScheduler) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args []interface{}) (int64, error) {
-	return s.repository.Insert(ctx, name, scheduledAt, args)
+	if jobID, err := s.repository.Insert(ctx, name, scheduledAt, args); err != nil {
+		log.Println(err.Error())
+		return 0, err
+	} else {
+		return jobID, nil
+	}
 }
 
-func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
+func (s *EnqueueScheduler) MarkRetryFailedJobs(ctx context.Context) {
+
+	const retryLock = constants.RetryLock
+	if err := s.lock.Acquire(retryLock); err != nil {
+		return
+	}
+	defer s.lock.Release(retryLock)
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.repository.MarkRetryFailedJobs(ctx)
+		}
+	}
+}
+
+func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context, interval, workerCount int) error {
 	const enqueueLock = constants.EnqueueLock
 	if err := s.lock.Acquire(enqueueLock); err != nil {
 		return err
@@ -70,7 +99,7 @@ func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 		log.Fatal(err.Error())
 	}
 
-	sem := semaphore.NewWeighted(5)
+	sem := semaphore.NewWeighted(int64(workerCount))
 	var wg sync.WaitGroup
 
 	for {
@@ -80,7 +109,7 @@ func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context) error {
 			return ctx.Err()
 		default:
 			s.processDueJobs(ctx, sem, &wg)
-			time.Sleep(1 * time.Second)
+			time.Sleep(time.Duration(interval) * time.Second)
 		}
 	}
 }
@@ -94,11 +123,11 @@ func (s *EnqueueScheduler) startResultProcessor(ctx context.Context) {
 			case res := <-s.jobResults:
 				switch res.Status {
 				case state.StatusSucceeded:
-					if state.IsValidTransition(state.StatusQueued, state.StatusSucceeded) {
+					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
 						s.repository.MarkSuccess(ctx, res.JobID)
 					}
 				case state.StatusFailed:
-					if state.IsValidTransition(state.StatusQueued, state.StatusFailed) {
+					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
 						s.repository.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts)
 					}
 				default:
@@ -110,9 +139,10 @@ func (s *EnqueueScheduler) startResultProcessor(ctx context.Context) {
 }
 
 func (s *EnqueueScheduler) processDueJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup) {
+	log.Println("start to process enqueued jobs")
 	now := time.Now()
-	status := state.StatusQueued
-	jobsList, err := s.repository.FetchDueJobs(ctx, 1, 100, &status, &now)
+	statuses := []state.JobStatus{state.StatusQueued, state.StatusRetrying}
+	jobsList, err := s.repository.FetchDueJobs(ctx, 1, 100, statuses, &now)
 	if err != nil {
 		log.Println("fetch error:", err)
 		time.Sleep(2 * time.Second)
@@ -122,10 +152,12 @@ func (s *EnqueueScheduler) processDueJobs(ctx context.Context, sem *semaphore.We
 	for _, job := range jobsList.Items {
 		ok, err := s.repository.LockJob(ctx, &job, s.instance)
 		if err != nil || !ok {
+			log.Println(err)
 			continue
 		}
 
 		if err := sem.Acquire(ctx, 1); err != nil {
+			log.Println(err.Error())
 			break
 		}
 		wg.Add(1)
