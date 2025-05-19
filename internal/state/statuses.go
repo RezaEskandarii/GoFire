@@ -8,7 +8,6 @@ const (
 	StatusSucceeded  JobStatus = "succeeded"
 	StatusFailed     JobStatus = "failed"
 	StatusRetrying   JobStatus = "retrying"
-	StatusCancelled  JobStatus = "cancelled"
 	StatusDead       JobStatus = "dead"
 )
 
@@ -22,7 +21,6 @@ var AllStatuses = []JobStatus{
 	StatusSucceeded,
 	StatusFailed,
 	StatusRetrying,
-	StatusCancelled,
 	StatusDead,
 }
 
@@ -38,7 +36,6 @@ var ValidTransitions = []Transition{
 	{From: StatusFailed, To: StatusRetrying},
 	{From: StatusRetrying, To: StatusProcessing},
 	{From: StatusFailed, To: StatusDead},
-	{From: StatusQueued, To: StatusCancelled},
 }
 
 func IsValidTransition(from, to JobStatus) bool {

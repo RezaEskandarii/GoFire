@@ -51,11 +51,12 @@
                 <tr>
                     <th>ID</th>
                     <th>Name</th>
-                   <th>Status</th>
+                    <th>Status</th>
                     <th>Attempts</th>
                     <th>Scheduled At</th>
                     <th>Last Error</th>
                     <th>Payload</th>
+                    <th>Action</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -69,6 +70,19 @@
                     <td>{{ if .LastError }}{{ .LastError }}{{ else }}-{{ end }}</td>
                     <td>
                         <pre>{{ printf "%s" .Payload }}</pre>
+                    </td>
+                    <td>
+                        <div class="row">
+                            <div class="col">
+                                <form method="post" action="/" class="delete-form">
+                                    <input type="hidden" name="action" value="remove">
+                                    <input type="hidden" name="id" value="{{ .ID }}">
+                                    <button type="button" class="btn btn-sm btn-danger delete-btn">Remove</button>
+                                </form>
+                            </div>
+
+                        </div>
+
                     </td>
                 </tr>
                 {{ end }}
