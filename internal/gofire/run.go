@@ -7,40 +7,19 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"gofire/internal/app"
+	"gofire/internal/models"
 	"gofire/web"
 )
 
-type MethodHandler struct {
-	MethodName string
-	Func       func([]interface{}) error
-}
-
-type Config struct {
-	Connection           string
-	DashboardPort        int
-	DashboardAuthEnabled bool
-	DashboardUserName    string
-	DashboardPassword    string
-	Instance             string
-	EnableDashboard      bool
-	Handlers             []MethodHandler
-	Driver               StorageDriver
-}
-
-func (c Config) RegisterHandler(handler MethodHandler) Config {
-	c.Handlers = append(c.Handlers, handler)
-	return c
-}
-
-func Run(ctx context.Context, config Config) error {
+func Run(ctx context.Context, config models.Config) error {
 	var sqlDB *sql.DB
 	var redisClient *redis.Client
 
 	switch config.Driver {
-	case Postgres:
+	case models.Postgres:
 		sqlDB = setupPostgres(config.Connection)
 		defer sqlDB.Close()
-	case Redis:
+	case models.Redis:
 		redisClient = setupRedis(ctx, config.Connection)
 		defer redisClient.Close()
 	default:

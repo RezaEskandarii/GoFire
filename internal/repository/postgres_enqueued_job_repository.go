@@ -151,7 +151,7 @@ func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, job *models
 	return affected > 0, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int) error {
+func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
 	_, err := r.db.ExecContext(ctx, `
  		UPDATE gofire_schema.enqueued_jobs
 		SET status = 'succeeded',
@@ -163,7 +163,7 @@ func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID i
 	return err
 }
 
-func (r *PostgresEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string, attempts int, maxAttempts int) error {
+func (r *PostgresEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string, attempts int, maxAttempts int) error {
 	status := state.StatusFailed
 	if attempts+1 >= constants.MaxRetryAttempt {
 		status = state.StatusDead

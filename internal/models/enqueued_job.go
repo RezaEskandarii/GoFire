@@ -7,7 +7,7 @@ import (
 )
 
 type EnqueuedJob struct {
-	ID          int
+	ID          int64
 	Name        string
 	Payload     json.RawMessage
 	Status      state.JobStatus
