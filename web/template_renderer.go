@@ -11,6 +11,7 @@ func render(w http.ResponseWriter, tmplName string, data any) {
 	funcMap := template.FuncMap{
 		"StatusBadgeClass": StatusBadgeClass,
 		"StatusBgClass":    StatusBgClass,
+		"StatusIcon":       StatusIcon,
 	}
 
 	tmpl := template.New("layout.html").Funcs(funcMap)
@@ -62,5 +63,22 @@ func StatusBgClass(status state.JobStatus) string {
 		return " bg-dark"
 	default:
 		return " bg-light text-dark"
+	}
+}
+
+func StatusIcon(status state.JobStatus) string {
+	switch status {
+	case state.StatusQueued:
+		return "📥"
+	case state.StatusProcessing:
+		return "⚙️"
+	case state.StatusSucceeded:
+		return "✅"
+	case state.StatusFailed:
+		return "❌"
+	case state.StatusRetrying:
+		return "🔁"
+	default:
+		return "❓"
 	}
 }
