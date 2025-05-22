@@ -13,6 +13,7 @@ const (
 	DefaultWorkerCount   = 5
 	DefaultInterval      = 15
 	DefaultStorageDriver = Postgres
+	DefaultBatchSize     = 100
 )
 
 func (d StorageDriver) String() string {
@@ -51,6 +52,7 @@ type GofireConfig struct {
 	StorageDriver        StorageDriver
 	WorkerCount          int
 	Interval             int
+	BatchSize            int
 	// Storage Configs
 	PostgresConfig PostgresConfig
 	RedisConfig    RedisConfig
@@ -62,6 +64,7 @@ func NewGofireConfig(instance string) *GofireConfig {
 		Interval:      DefaultInterval,
 		WorkerCount:   DefaultWorkerCount,
 		StorageDriver: DefaultStorageDriver,
+		BatchSize:     DefaultBatchSize,
 	}
 }
 
@@ -103,6 +106,11 @@ func (c *GofireConfig) WithWorkerCount(n int) *GofireConfig {
 
 func (c *GofireConfig) WithInterval(seconds int) *GofireConfig {
 	c.Interval = seconds
+	return c
+}
+
+func (c *GofireConfig) WithBatchSize(batchSize int) *GofireConfig {
+	c.BatchSize = batchSize
 	return c
 }
 

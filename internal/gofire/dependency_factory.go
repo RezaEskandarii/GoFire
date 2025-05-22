@@ -8,7 +8,7 @@ import (
 	"gofire/internal/repository"
 )
 
-func NewEnqueuedJobRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.EnqueuedJobRepository {
+func CreateEnqueuedJobRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.EnqueuedJobRepository {
 	switch driver {
 	case config.Postgres:
 		return repository.NewPostgresEnqueuedJobRepository(db)
@@ -19,7 +19,7 @@ func NewEnqueuedJobRepository(driver config.StorageDriver, db *sql.DB, redisClie
 	}
 }
 
-func NewDistributedLockManager(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) lock.DistributedLockManager {
+func CreateDistributedLockManager(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) lock.DistributedLockManager {
 	switch driver {
 	case config.Postgres:
 		return lock.NewPostgresDistributedLockManager(db)

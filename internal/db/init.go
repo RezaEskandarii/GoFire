@@ -15,14 +15,13 @@ const (
 	schema  = "gofire_schema"
 )
 
-func Init(postgresURL string) error {
+func Init(postgresURL string, distributedLock lock.DistributedLockManager) error {
 	db, err := sql.Open("postgres", postgresURL)
 	if err != nil {
 		return err
 	}
 
 	migrationLock := constants.MigrationLock
-	distributedLock := lock.NewPostgresDistributedLockManager(db)
 
 	if err = distributedLock.Acquire(migrationLock); err != nil {
 		return err
@@ -42,6 +41,7 @@ func Init(postgresURL string) error {
 
 	if scripts, err := readSQLScripts(); err == nil {
 		for _, script := range scripts {
+			fmt.Println(script)
 			_, err = db.Exec(script)
 			if err != nil {
 				return err

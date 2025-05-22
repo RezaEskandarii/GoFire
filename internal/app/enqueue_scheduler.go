@@ -15,20 +15,12 @@ import (
 	"time"
 )
 
-type JobResult struct {
-	JobID       int64
-	Err         error
-	Attempts    int
-	MaxAttempts int
-	Status      state.JobStatus
-}
-
 type EnqueueScheduler struct {
 	repository repository.EnqueuedJobRepository
 	instance   string
 	lock       lock.DistributedLockManager
 	handlers   map[string]func([]interface{}) error
-	jobResults chan JobResult
+	jobResults chan models.JobResult
 }
 
 func NewScheduler(repository repository.EnqueuedJobRepository, lock lock.DistributedLockManager, instance string) EnqueueScheduler {
@@ -37,7 +29,7 @@ func NewScheduler(repository repository.EnqueuedJobRepository, lock lock.Distrib
 		instance:   instance,
 		lock:       lock,
 		handlers:   make(map[string]func([]interface{}) error),
-		jobResults: make(chan JobResult, 1000),
+		jobResults: make(chan models.JobResult, 1000),
 	}
 
 	go scheduler.MarkRetryFailedJobs(context.Background())
@@ -86,7 +78,7 @@ func (s *EnqueueScheduler) MarkRetryFailedJobs(ctx context.Context) {
 	}
 }
 
-func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context, interval, workerCount int) error {
+func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context, interval, workerCount, batchSize int) error {
 	const enqueueLock = constants.EnqueueLock
 	if err := s.lock.Acquire(enqueueLock); err != nil {
 		return err
@@ -108,7 +100,7 @@ func (s *EnqueueScheduler) ProcessEnqueues(ctx context.Context, interval, worker
 			wg.Wait()
 			return ctx.Err()
 		default:
-			s.processDueJobs(ctx, sem, &wg)
+			s.processDueJobs(ctx, sem, &wg, batchSize)
 			time.Sleep(time.Duration(interval) * time.Second)
 		}
 	}
@@ -133,7 +125,7 @@ func (s *EnqueueScheduler) ExecuteJobManually(ctx context.Context, jobID int64) 
 	err = handler(args)
 	status := s.errorToJobStatus(err)
 
-	s.jobResults <- JobResult{
+	s.jobResults <- models.JobResult{
 		JobID:       job.ID,
 		Err:         err,
 		Attempts:    job.Attempts + 1,
@@ -168,11 +160,11 @@ func (s *EnqueueScheduler) startResultProcessor(ctx context.Context) {
 	}()
 }
 
-func (s *EnqueueScheduler) processDueJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup) {
+func (s *EnqueueScheduler) processDueJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
 	log.Println("start to process enqueued jobs")
 	now := time.Now()
 	statuses := []state.JobStatus{state.StatusQueued, state.StatusRetrying}
-	jobsList, err := s.repository.FetchDueJobs(ctx, 1, 100, statuses, &now)
+	jobsList, err := s.repository.FetchDueJobs(ctx, 1, batchSize, statuses, &now)
 	if err != nil {
 		log.Println("fetch error:", err)
 		time.Sleep(2 * time.Second)
@@ -208,7 +200,7 @@ func (s *EnqueueScheduler) handleJob(ctx context.Context, sem *semaphore.Weighte
 	handler, err := s.GetHandler(job.Name)
 	if err != nil {
 		log.Println(err.Error())
-		s.jobResults <- JobResult{
+		s.jobResults <- models.JobResult{
 			JobID:       job.ID,
 			Err:         fmt.Errorf("handler not found"),
 			Attempts:    job.Attempts + 1,
@@ -221,7 +213,7 @@ func (s *EnqueueScheduler) handleJob(ctx context.Context, sem *semaphore.Weighte
 	var args []interface{}
 	if err := json.Unmarshal(job.Payload, &args); err != nil {
 		log.Printf("invalid payload for job %d: %v", job.ID, err)
-		s.jobResults <- JobResult{
+		s.jobResults <- models.JobResult{
 			JobID:       job.ID,
 			Err:         fmt.Errorf("invalid payload"),
 			Attempts:    job.Attempts + 1,
@@ -234,7 +226,7 @@ func (s *EnqueueScheduler) handleJob(ctx context.Context, sem *semaphore.Weighte
 	err = handler(args)
 
 	status := s.errorToJobStatus(err)
-	s.jobResults <- JobResult{
+	s.jobResults <- models.JobResult{
 		JobID:       job.ID,
 		Err:         err,
 		Attempts:    job.Attempts + 1,

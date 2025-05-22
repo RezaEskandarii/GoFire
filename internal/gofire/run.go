@@ -7,6 +7,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"gofire/internal/app"
+	"gofire/internal/db"
 	"gofire/internal/models/config"
 	"gofire/web"
 )
@@ -26,8 +27,10 @@ func Run(ctx context.Context, cfg config.GofireConfig) error {
 		return fmt.Errorf("unsupported driver: %v", cfg.StorageDriver)
 	}
 
-	repo := NewEnqueuedJobRepository(cfg.StorageDriver, sqlDB, redisClient)
-	lockMgr := NewDistributedLockManager(cfg.StorageDriver, sqlDB, redisClient)
+	repo := CreateEnqueuedJobRepository(cfg.StorageDriver, sqlDB, redisClient)
+	lockMgr := CreateDistributedLockManager(cfg.StorageDriver, sqlDB, redisClient)
+
+	db.Init(cfg.PostgresConfig.ConnectionUrl, lockMgr)
 
 	scheduler := app.NewScheduler(repo, lockMgr, cfg.Instance)
 
@@ -43,7 +46,7 @@ func Run(ctx context.Context, cfg config.GofireConfig) error {
 	//	fmt.Println(phone)
 	//}
 
-	go scheduler.ProcessEnqueues(ctx, cfg.Interval, cfg.WorkerCount)
+	go scheduler.ProcessEnqueues(ctx, cfg.Interval, cfg.WorkerCount, cfg.BatchSize)
 
 	if cfg.EnableDashboard {
 		router := web.NewRouteHandler(repo)
