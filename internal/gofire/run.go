@@ -6,7 +6,6 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
-	"gofire/internal/app"
 	"gofire/internal/db"
 	"gofire/internal/models/config"
 	"gofire/web"
@@ -27,22 +26,27 @@ func Run(ctx context.Context, cfg config.GofireConfig) error {
 		return fmt.Errorf("unsupported driver: %v", cfg.StorageDriver)
 	}
 
-	repo := CreateEnqueuedJobRepository(cfg.StorageDriver, sqlDB, redisClient)
-	lockMgr := CreateDistributedLockManager(cfg.StorageDriver, sqlDB, redisClient)
-
-	db.Init(cfg.PostgresConfig.ConnectionUrl, lockMgr)
-
-	jobHandler := app.NewJobHandler()
+	jobHandler := NewJobHandler()
 	for _, handler := range cfg.Handlers {
-		jobHandler.Register(handler.MethodName, handler.Func)
+		if err := jobHandler.Register(handler.MethodName, handler.Func); err != nil {
+			return err
+		}
 	}
 
-	scheduler := app.NewEnqueueScheduler(repo, lockMgr, jobHandler, cfg.Instance)
+	managers, err := createJobManagers(cfg, sqlDB, redisClient, jobHandler)
+	if err != nil {
+		return err
+	}
 
-	go scheduler.ProcessEnqueues(ctx, cfg.Interval, cfg.WorkerCount, cfg.BatchSize)
+	if err := db.Init(cfg.PostgresConfig.ConnectionUrl, managers.LockMgr); err != nil {
+		return err
+	}
+
+	go managers.EnqueueScheduler.Start(ctx, cfg.Interval, cfg.WorkerCount, cfg.BatchSize)
+	go managers.CronJobManager.Start(ctx, 60, cfg.WorkerCount, cfg.BatchSize)
 
 	if cfg.EnableDashboard {
-		router := web.NewRouteHandler(repo)
+		router := web.NewRouteHandler(managers.EnqueuedJobRepo)
 		router.Serve(cfg.DashboardPort)
 	}
 

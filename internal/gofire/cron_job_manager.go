@@ -1,4 +1,4 @@
-package app
+package gofire
 
 import (
 	"context"
@@ -7,17 +7,17 @@ import (
 	"gofire/internal/constants"
 	"gofire/internal/lock"
 	"gofire/internal/models"
+	"gofire/internal/parser"
 	"gofire/internal/repository"
 	"gofire/internal/state"
 	"log"
 	"sync"
 	"time"
 
-	"github.com/robfig/cron/v3"
 	"golang.org/x/sync/semaphore"
 )
 
-type CronJobManager struct {
+type cronJobManager struct {
 	repository repository.CronJobRepository
 	lock       lock.DistributedLockManager
 	jobHandler JobHandler
@@ -25,8 +25,8 @@ type CronJobManager struct {
 	jobResults chan models.JobResult
 }
 
-func NewCronJobManager(repo repository.CronJobRepository, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) *CronJobManager {
-	scheduler := &CronJobManager{
+func newCronJobManager(repo repository.CronJobRepository, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) cronJobManager {
+	scheduler := cronJobManager{
 		repository: repo,
 		lock:       lock,
 		jobHandler: jobHandler,
@@ -37,7 +37,13 @@ func NewCronJobManager(repo repository.CronJobRepository, lock lock.DistributedL
 	return scheduler
 }
 
-func (s *CronJobManager) Start(ctx context.Context, intervalSeconds, workerCount, batchSize int) {
+func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCount, batchSize int) error {
+	const cronJobLock = constants.StartCronJobLock
+	if err := cm.lock.Acquire(cronJobLock); err != nil {
+		return err
+	}
+	defer cm.lock.Release(cronJobLock)
+
 	ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
 	defer ticker.Stop()
 
@@ -47,34 +53,34 @@ func (s *CronJobManager) Start(ctx context.Context, intervalSeconds, workerCount
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("CronJobManager stopped")
+			log.Println("cronJobManager stopped")
 			wg.Wait()
-			return
+			return ctx.Err()
 		case <-ticker.C:
-			s.processCronJobs(ctx, sem, &wg, batchSize)
+			cm.processCronJobs(ctx, sem, &wg, batchSize)
 		}
 	}
 }
 
-func (s *CronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
+func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
 	const cronLock = constants.CronJobLock
-	if err := s.lock.Acquire(cronLock); err != nil {
-		log.Println("CronJobManager: lock acquire failed:", err)
+	if err := cm.lock.Acquire(cronLock); err != nil {
+		log.Println("cronJobManager: lock acquire failed:", err)
 		return
 	}
-	defer s.lock.Release(cronLock)
+	defer cm.lock.Release(cronLock)
 
 	page := 1
 	for {
-		result, err := s.repository.FetchDueCronJobs(ctx, page, batchSize)
+		result, err := cm.repository.FetchDueCronJobs(ctx, page, batchSize)
 		if err != nil {
-			log.Printf("CronJobManager: failed to fetch jobs: %v", err)
+			log.Printf("cronJobManager: failed to fetch jobs: %v", err)
 			return
 		}
 
 		for _, job := range result.Items {
 			if err := sem.Acquire(ctx, 1); err != nil {
-				log.Println("CronJobManager: semaphore error:", err)
+				log.Println("cronJobManager: semaphore error:", err)
 				continue
 			}
 			wg.Add(1)
@@ -82,7 +88,7 @@ func (s *CronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Wei
 			go func(job models.CronJob) {
 				defer sem.Release(1)
 				defer wg.Done()
-				s.executeJob(ctx, job)
+				cm.executeJob(ctx, job)
 			}(job)
 		}
 
@@ -93,12 +99,12 @@ func (s *CronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Wei
 	}
 }
 
-func (s *CronJobManager) executeJob(ctx context.Context, job models.CronJob) {
+func (cm *cronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 	now := time.Now()
-	nextRun := calculateNextRun(job.Expression, now)
+	nextRun := parser.CalculateNextRun(job.Expression, now)
 
-	if !s.jobHandler.Exists(job.Name) {
-		s.jobResults <- models.JobResult{
+	if !cm.jobHandler.Exists(job.Name) {
+		cm.jobResults <- models.JobResult{
 			JobID:   job.ID,
 			Err:     fmt.Errorf("handler not found"),
 			Status:  state.StatusFailed,
@@ -110,7 +116,7 @@ func (s *CronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 
 	var args []interface{}
 	if err := json.Unmarshal(job.Payload, &args); err != nil {
-		s.jobResults <- models.JobResult{
+		cm.jobResults <- models.JobResult{
 			JobID:   job.ID,
 			Err:     fmt.Errorf("invalid payload: %v", err),
 			Status:  state.StatusFailed,
@@ -120,10 +126,10 @@ func (s *CronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 		return
 	}
 
-	err := s.jobHandler.Execute(job.Name, args)
-	status := s.errorToJobStatus(err)
+	err := cm.jobHandler.Execute(job.Name, args)
+	status := cm.errorToJobStatus(err)
 
-	s.jobResults <- models.JobResult{
+	cm.jobResults <- models.JobResult{
 		JobID:   job.ID,
 		Err:     err,
 		Status:  status,
@@ -132,44 +138,34 @@ func (s *CronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 	}
 }
 
-func (s *CronJobManager) startResultProcessor(ctx context.Context) {
+func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case res := <-s.jobResults:
+			case res := <-cm.jobResults:
 				switch res.Status {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
-						s.repository.MarkSuccess(ctx, res.JobID)
+						cm.repository.MarkSuccess(ctx, res.JobID)
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
-						s.repository.MarkFailure(ctx, res.JobID, res.Err.Error())
+						cm.repository.MarkFailure(ctx, res.JobID, res.Err.Error())
 					}
 				default:
-					log.Printf("CronJobManager: unknown status: %s", res.Status)
+					log.Printf("cronJobManager: unknown status: %cm", res.Status)
 				}
-				s.repository.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun)
+				cm.repository.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun)
 			}
 		}
 	}()
 }
 
-func (s *CronJobManager) errorToJobStatus(err error) state.JobStatus {
+func (cm *cronJobManager) errorToJobStatus(err error) state.JobStatus {
 	if err != nil {
 		return state.StatusFailed
 	}
 	return state.StatusSucceeded
-}
-
-func calculateNextRun(expr string, from time.Time) time.Time {
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	schedule, err := parser.Parse(expr)
-	if err != nil {
-		log.Printf("CronJobManager: invalid cron expression '%s': %v", expr, err)
-		return from.Add(1 * time.Hour)
-	}
-	return schedule.Next(from)
 }

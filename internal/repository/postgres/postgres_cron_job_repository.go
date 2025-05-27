@@ -14,8 +14,8 @@ type PostgresCronJobRepository struct {
 	db *sql.DB
 }
 
-func NewCronJobRepository(db *sql.DB) PostgresCronJobRepository {
-	return PostgresCronJobRepository{db: db}
+func NewPostgresCronJobRepository(db *sql.DB) *PostgresCronJobRepository {
+	return &PostgresCronJobRepository{db: db}
 }
 
 func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}, expression string) (int64, error) {
