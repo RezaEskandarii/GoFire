@@ -6,12 +6,13 @@ import (
 	"gofire/internal/lock"
 	"gofire/internal/models/config"
 	"gofire/internal/repository"
+	"gofire/internal/repository/postgres"
 )
 
 func CreateEnqueuedJobRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.EnqueuedJobRepository {
 	switch driver {
 	case config.Postgres:
-		return repository.NewPostgresEnqueuedJobRepository(db)
+		return postgres.NewPostgresEnqueuedJobRepository(db)
 	case config.Redis:
 		panic("unsupported storage driver")
 	default:

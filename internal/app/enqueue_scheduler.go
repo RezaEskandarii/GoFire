@@ -172,7 +172,7 @@ func (s *EnqueueScheduler) processDueJobs(ctx context.Context, sem *semaphore.We
 	}
 
 	for _, job := range jobsList.Items {
-		ok, err := s.repository.LockJob(ctx, &job, s.instance)
+		ok, err := s.repository.LockJob(ctx, job.ID, s.instance)
 		if err != nil || !ok {
 			log.Println(err)
 			continue

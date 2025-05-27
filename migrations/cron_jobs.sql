@@ -3,7 +3,6 @@ CREATE TABLE IF NOT EXISTS gofire_schema.cron_jobs
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     payload     JSONB        NOT NULL,
-    status      TEXT         NOT NULL DEFAULT 'queued',
     last_error  TEXT,
     locked_by   TEXT,
     locked_at   TIMESTAMPTZ,
@@ -19,3 +18,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status
 
 CREATE INDEX IF NOT EXISTS idx_jobs_next_run_at
     ON gofire_schema.cron_jobs USING btree (next_run_at);
+
+ALTER TABLE gofire_schema.cron_jobs
+    ADD CONSTRAINT unique_cron_job_name UNIQUE (name);

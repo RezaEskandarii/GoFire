@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -196,8 +196,8 @@ func (r *PostgresEnqueuedJobRepository) MarkRetryFailedJobs(ctx context.Context)
 	return err
 }
 
-func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, job *models.EnqueuedJob, lockedBy string) (bool, error) {
-	job.Status = state.StatusProcessing
+func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
+
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
 		SET locked_at = NOW(), 
@@ -205,7 +205,7 @@ func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, job *models
 		    locked_by = $1,
 		    status = $2
 		WHERE id = $3 AND (status = $4 OR status = $5)
-	`, lockedBy, state.StatusProcessing, job.ID, state.StatusQueued, state.StatusRetrying)
+	`, lockedBy, state.StatusProcessing, jobID, state.StatusQueued, state.StatusRetrying)
 	if err != nil {
 		return false, err
 	}
