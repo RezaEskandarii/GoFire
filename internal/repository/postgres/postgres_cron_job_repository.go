@@ -110,7 +110,7 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 	return result, nil
 }
 
-func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID int, lastRunAt, nextRunAt time.Time) error {
+func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET last_run_at = $1, next_run_at = $2
@@ -120,7 +120,7 @@ func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID
 	return err
 }
 
-func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int) error {
+func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET status = 'success', last_error = NULL
@@ -130,7 +130,7 @@ func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int) 
 	return err
 }
 
-func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int, errMsg string) error {
+func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET status = 'failed', last_error = $1
@@ -140,15 +140,15 @@ func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int, 
 	return err
 }
 
-func (r *PostgresCronJobRepository) Activate(ctx context.Context, jobID int) error {
+func (r *PostgresCronJobRepository) Activate(ctx context.Context, jobID int64) error {
 	return r.executeIsActivateQuery(ctx, jobID, true)
 }
 
-func (r *PostgresCronJobRepository) DeActivate(ctx context.Context, jobID int) error {
+func (r *PostgresCronJobRepository) DeActivate(ctx context.Context, jobID int64) error {
 	return r.executeIsActivateQuery(ctx, jobID, false)
 }
 
-func (r *PostgresCronJobRepository) executeIsActivateQuery(ctx context.Context, jobID int, isActive bool) error {
+func (r *PostgresCronJobRepository) executeIsActivateQuery(ctx context.Context, jobID int64, isActive bool) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET is_active = $1

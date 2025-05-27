@@ -1,6 +1,9 @@
 package models
 
-import "gofire/internal/state"
+import (
+	"gofire/internal/state"
+	"time"
+)
 
 type JobResult struct {
 	JobID       int64
@@ -8,4 +11,6 @@ type JobResult struct {
 	Attempts    int
 	MaxAttempts int
 	Status      state.JobStatus
+	RanAt       time.Time
+	NextRun     time.Time
 }

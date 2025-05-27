@@ -7,7 +7,7 @@ import (
 )
 
 type CronJob struct {
-	ID         int
+	ID         int64
 	Name       string
 	Payload    json.RawMessage
 	Status     state.JobStatus

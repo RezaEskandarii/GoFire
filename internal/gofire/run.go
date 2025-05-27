@@ -32,19 +32,12 @@ func Run(ctx context.Context, cfg config.GofireConfig) error {
 
 	db.Init(cfg.PostgresConfig.ConnectionUrl, lockMgr)
 
-	scheduler := app.NewScheduler(repo, lockMgr, cfg.Instance)
-
+	jobHandler := app.NewJobHandler()
 	for _, handler := range cfg.Handlers {
-		scheduler.RegisterHandler(handler.MethodName, handler.Func)
+		jobHandler.Register(handler.MethodName, handler.Func)
 	}
 
-	//duration := time.Now().Add(time.Minute)
-	//for i := 0; i < 10000; i++ {
-	//	phone := fmt.Sprintf("093740528_%d", i)
-	//	message := fmt.Sprintf("message_%d", i)
-	//	scheduler.Enqueue(ctx, "send_sms", duration, []interface{}{phone, message})
-	//	fmt.Println(phone)
-	//}
+	scheduler := app.NewEnqueueScheduler(repo, lockMgr, jobHandler, cfg.Instance)
 
 	go scheduler.ProcessEnqueues(ctx, cfg.Interval, cfg.WorkerCount, cfg.BatchSize)
 

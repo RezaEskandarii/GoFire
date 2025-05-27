@@ -5,6 +5,7 @@ const (
 	EnqueueLock
 	ScheduleLock
 	RetryLock
+	CronJobLock
 )
 
 const (
