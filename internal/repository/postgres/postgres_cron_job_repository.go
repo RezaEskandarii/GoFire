@@ -114,6 +114,106 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 	return result, nil
 }
 
+func (r *PostgresCronJobRepository) GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * pageSize
+
+	var args []interface{}
+	where := "TRUE"
+
+	argIndex := 1
+	if status != "" {
+		where += fmt.Sprintf(" AND status = $%d", argIndex)
+		args = append(args, status)
+		argIndex++
+	}
+
+	countQuery := `SELECT COUNT(*) FROM gofire_schema.cron_jobs WHERE ` + where
+	selectQuery := fmt.Sprintf(`
+		SELECT id, name, payload, status, last_error,
+		       locked_by, locked_at, created_at,
+		       last_run_at, next_run_at, is_active, expression
+		FROM gofire_schema.cron_jobs
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d`, where, argIndex, argIndex+1)
+
+	args = append(args, pageSize, offset)
+
+	// Count total items
+	var totalItems int
+	err := r.db.QueryRowContext(ctx, countQuery, args[:len(args)-2]...).Scan(&totalItems)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch rows
+	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []models.CronJob
+	for rows.Next() {
+		var job models.CronJob
+		err := rows.Scan(
+			&job.ID, &job.Name, &job.Payload, &job.Status, &job.LastError,
+			&job.LockedBy, &job.LockedAt, &job.CreatedAt,
+			&job.LastRunAt, &job.NextRunAt, &job.IsActive, &job.Expression,
+		)
+		if err != nil {
+			log.Println("Scan error:", err)
+			continue
+		}
+		jobs = append(jobs, job)
+	}
+
+	totalPages := int(math.Ceil(float64(totalItems) / float64(pageSize)))
+	result := &models.PaginationResult[models.CronJob]{
+		Items:           jobs,
+		TotalItems:      totalItems,
+		Page:            page,
+		PageSize:        pageSize,
+		TotalPages:      totalPages,
+		HasNextPage:     page < totalPages,
+		HasPreviousPage: page > 1,
+	}
+
+	return result, nil
+}
+func (r *PostgresCronJobRepository) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT status, COUNT(*) AS count
+		FROM gofire_schema.cron_jobs
+		GROUP BY status
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[state.JobStatus]int)
+	for rows.Next() {
+		var status state.JobStatus
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+
+	for _, status := range state.AllStatuses {
+		if _, ok := result[status]; !ok && status != state.StatusDead {
+			result[status] = 0
+		}
+	}
+
+	return result, nil
+}
+
 func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
@@ -127,10 +227,10 @@ func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID
 func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
-	SET status = 'success', last_error = NULL
-	WHERE id = $1;
+	SET status = $1, last_error = NULL
+	WHERE id = $2;
 	`
-	_, err := r.db.ExecContext(ctx, query, jobID)
+	_, err := r.db.ExecContext(ctx, query, state.StatusSucceeded, jobID)
 	return err
 }
 

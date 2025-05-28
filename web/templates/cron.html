@@ -1,0 +1,130 @@
+{{define "content"}}
+
+<br>
+<br>
+<br>
+<div class="row">
+    {{range $key, $value := .JobsCount}}
+    <div class="col-md-2">
+        <div class="card status-card text-white {{ StatusBgClass $key }}">
+            <div class="card-body text-center">
+                <h6 class="card-title">
+                    {{ StatusIcon $key }} {{ $key }}
+                </h6>
+                <div class="card-text">
+                    <strong>{{ $value }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+
+</div>
+<br>
+<div class="row">
+
+    <div class="col-md-12">
+        <div class="row">
+            <div class="col-md-4">
+                <label>Status</label>
+                <form action="/cron-jobs">
+                    <select name="status" class="form-control" onchange="this.form.submit()">
+                        <option value="">---all---</option>
+                        {{range .Statuses}}
+                        <option value="{{.}}" {{if eq . $.CurrentStatus}}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
+                </form>
+            </div>
+            <div class="col-md-3">
+                <div>
+                    Page {{ .Page }} of {{ .TotalPages }} ({{ .TotalItems }} jobs)
+                </div>
+
+                <div class="pagination">
+                    {{ if .HasPreviousPage }}
+                    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'prev')" data-page="{{ .Page }}">«
+                        Previous</a>
+                    {{ end }}
+                    &nbsp;
+                    {{ if .HasNextPage }}
+                    <a class="btn btn-sm btn-primary" href="#" onclick="goToPage(this,'next')" data-page="{{ .Page }}">Next
+                        »</a>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+        <br>
+        <div>🕒 Recently Jobs</div>
+        <div class="responsive-table">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>NextRun At</th>
+                    <th>IsActive</th>
+                    <th>Expression</th>
+                    <th>Payload</th>
+                    <th>Last Error</th>
+                    <th>Action</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{ range .Items }}
+
+                <tr>
+                    <td>{{.ID}}</td>
+                    <td>{{.Name}}</td>
+                    <td>
+                <span class="{{StatusBadgeClass .Status}}">
+                    {{StatusIcon .Status}} {{.Status}}
+                </span>
+                    </td>
+                    <td>{{.NextRunAt}}</td>
+                    <td>{{.LastRunAt}}</td>
+                    <td>{{if .IsActive}}✅{{else}}❌{{end}}</td>
+                    <td><code>{{.Expression}}</code></td>
+                    <td>
+                        <pre>{{ printf "%s" .Payload }}</pre>
+                    </td>
+                    <td>{{ .LastError }}</td>
+                    <td>{{if .IsActive}}
+
+                        <form method="post" action="/change-cron-job-status" class="delete-form">
+                            <input type="hidden" name="action" value="deactivate">
+                            <input type="hidden" name="id" value="{{ .ID }}">
+                            <button type="button" class="btn btn-sm btn-danger change-status-btn">Deactivate</button>
+                        </form>
+
+                        {{else}}
+
+                        <form method="post" action="/change-cron-job-status" class="delete-form">
+                            <input type="hidden" name="action" value="activate">
+                            <input type="hidden" name="id" value="{{ .ID }}">
+                            <button type="button" class="btn btn-sm btn-warning change-status-btn">Activate</button>
+                        </form>
+
+                        {{end}}</td>
+                </tr>
+                {{else}}
+                <tr>
+                    <td colspan="7" class="text-center">No scheduled jobs found</td>
+                </tr>
+
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<br>
+<br>
+{{end}}
+<script>
+    alert()
+    console.log(JSON.stringify("{{ .Items }}"))
+</script>

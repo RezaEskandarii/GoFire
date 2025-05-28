@@ -25,7 +25,7 @@
                 <a class="nav-link" href="/enqueued">Enqueued</a>
             </li>
             <li class="nav-item mx-2">
-                <a class="nav-link" href="/scheduled">Scheduled</a>
+                <a class="nav-link" href="/cron-jobs">CronJobs</a>
             </li>
             <li class="nav-item mx-2">
                 <a class="nav-link" href="/Logout">Logout</a>
@@ -66,12 +66,12 @@
 
                 Swal.fire({
                     title: options.title || 'Are you sure?',
-                    text: options.text || 'This action cannot be undone.',
+                    text: options.text,
                     icon: options.icon || 'warning',
                     showCancelButton: true,
                     confirmButtonColor: options.confirmButtonColor || '#3085d6',
                     cancelButtonColor: options.cancelButtonColor || '#aaa',
-                    confirmButtonText: options.confirmButtonText || 'Yes, proceed!',
+                    confirmButtonText: 'Yes, proceed!',
                     reverseButtons: true
                 }).then((result) => {
                     if (result.isConfirmed) {
@@ -86,6 +86,14 @@
         attachConfirmationToForms('.delete-btn', {
             title: 'Are you sure?',
             text: 'This job will be removed.',
+            icon: 'warning',
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        });
+
+        attachConfirmationToForms('.change-status-btn', {
+            title: 'Are you sure?',
+            text: '',
             icon: 'warning',
             confirmButtonColor: '#d33',
             confirmButtonText: 'Yes, delete it!'

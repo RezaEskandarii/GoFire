@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"gofire/internal/models"
+	"gofire/internal/state"
 	"time"
 )
 
@@ -14,6 +15,10 @@ type CronJobRepository interface {
 
 	// FetchDueCronJobs fetches active cron jobs whose NextRunAt <= now, limited by 'limit'.
 	FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error)
+
+	GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error)
+
+	CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error)
 
 	// UpdateJobRunTimes updates the LastRunAt and NextRunAt timestamps after execution.
 	UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error
