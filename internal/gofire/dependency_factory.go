@@ -31,6 +31,17 @@ func CreateCronJobRepository(driver config.StorageDriver, db *sql.DB, redisClien
 	}
 }
 
+func CreateUserRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.UserRepository {
+	switch driver {
+	case config.Postgres:
+		return postgres.NewPostgresUserRepository(db)
+	case config.Redis:
+		panic("unsupported storage driver")
+	default:
+		panic("unsupported storage driver")
+	}
+}
+
 func CreateDistributedLockManager(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) lock.DistributedLockManager {
 	switch driver {
 	case config.Postgres:

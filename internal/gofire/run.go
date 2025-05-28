@@ -8,7 +8,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gofire/internal/db"
 	"gofire/internal/models/config"
+	"gofire/internal/repository"
 	"gofire/web"
+	"log"
 )
 
 func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
@@ -42,6 +44,8 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 		return nil, err
 	}
 
+	createDashboardUser(ctx, &cfg, managers.UserRepo)
+
 	go managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
 	go managers.CronJobManager.Start(ctx, 3, cfg.WorkerCount, cfg.BatchSize)
 
@@ -52,4 +56,14 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 		}()
 	}
 	return NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler), nil
+}
+
+func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, repo repository.UserRepository) {
+	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
+		if user, err := repo.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
+			repo.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword)
+		} else {
+			log.Print(err)
+		}
+	}
 }
