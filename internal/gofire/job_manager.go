@@ -10,20 +10,52 @@ import (
 	"time"
 )
 
+// JobManager defines methods for scheduling and managing background tasks.
 type JobManager interface {
+
+	// Enqueue looks up a registered functions by name, then schedules it to run at the specified time by adding it to the queue.
+	// Accepts optional arguments to pass to the job when it runs.
+	// Returns the ID of the enqueued job or an error if the job name is not found or enqueueing fails.
 	Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error)
+
+	// RemoveEnqueue deletes a queued job using its ID.
 	RemoveEnqueue(ctx context.Context, jobID int64) error
+
+	// FindEnqueue returns the details of a queued job by its ID.
 	FindEnqueue(ctx context.Context, jobID int64) (*models.EnqueuedJob, error)
+
+	// Schedule sets up a recurring job based on a cron expression.
 	Schedule(ctx context.Context, jobName string, expression string, args ...any) (int64, error)
+
+	// ActivateSchedule enables a scheduled job if it was previously disabled.
 	ActivateSchedule(ctx context.Context, jobID int64)
+
+	// DeActivateSchedule temporarily disables a scheduled job.
 	DeActivateSchedule(ctx context.Context, jobID int64)
+
+	// ScheduleEveryMinute runs a job once every minute.
 	ScheduleEveryMinute(ctx context.Context, jobName string, args ...any) (int64, error)
+
+	// ScheduleEveryHour runs a job once every hour.
 	ScheduleEveryHour(ctx context.Context, jobName string, args ...any) (int64, error)
+
+	// ScheduleEveryDay runs a job once every day.
 	ScheduleEveryDay(ctx context.Context, jobName string, args ...any) (int64, error)
+
+	// ScheduleEveryWeek runs a job once a week.
 	ScheduleEveryWeek(ctx context.Context, jobName string, args ...any) (int64, error)
+
+	// ScheduleEveryMonth runs a job once a month.
 	ScheduleEveryMonth(ctx context.Context, jobName string, args ...any) (int64, error)
+
+	// ScheduleEveryYear runs a job once a year.
 	ScheduleEveryYear(ctx context.Context, jobName string, args ...any) (int64, error)
+
+	// ScheduleInvokeWithTimer looks up a registered job by name and schedules it to run repeatedly
+	// based on the given expression, using a lightweight timer.
 	ScheduleInvokeWithTimer(ctx context.Context, jobName string, expression string, args ...any) error
+
+	// ScheduleFuncWithTimer runs a custom function on a schedule using timers.
 	ScheduleFuncWithTimer(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error
 }
 
