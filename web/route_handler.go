@@ -32,7 +32,7 @@ func (handler *HttpRouteHandler) Serve(useAuth bool, port int) {
 	handler.handleDashboard(useAuth)
 	handler.handleScheduledJobs()
 	handler.handleLogin()
-
+	handler.handleLogout()
 	addr := fmt.Sprintf(":%d", port)
 	printBanner(addr)
 	http.ListenAndServe(addr, nil)
@@ -160,5 +160,18 @@ func (handler *HttpRouteHandler) handleLogin() {
 		default:
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
+	})
+}
+
+func (handler HttpRouteHandler) handleLogout() {
+	http.HandleFunc("/Logout", func(writer http.ResponseWriter, request *http.Request) {
+		http.SetCookie(writer, &http.Cookie{
+			Name:   "auth",
+			Value:  "",
+			Path:   "/",
+			MaxAge: -1,
+		})
+
+		http.Redirect(writer, request, "/login", http.StatusPermanentRedirect)
 	})
 }

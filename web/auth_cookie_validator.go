@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var secretKey = []byte("1235587abcfggt")
+var secretKey = []byte("1235587abcfgg$t.8#$")
 
 func generateAuthToken(username string) string {
 	mac := hmac.New(sha256.New, secretKey)
