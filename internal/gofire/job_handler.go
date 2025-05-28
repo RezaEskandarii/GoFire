@@ -6,18 +6,18 @@ import (
 )
 
 type JobHandler struct {
-	handlers map[string]func(args []interface{}) error
+	handlers map[string]func(args ...any) error
 	mutex    sync.Mutex
 }
 
 func NewJobHandler() JobHandler {
 	return JobHandler{
-		handlers: make(map[string]func(args []interface{}) error),
+		handlers: make(map[string]func(args ...any) error),
 	}
 }
 
 // Register adds a new job handler by name.
-func (jh *JobHandler) Register(name string, handler func(args []interface{}) error) error {
+func (jh *JobHandler) Register(name string, handler func(args ...any) error) error {
 	jh.mutex.Lock()
 	defer jh.mutex.Unlock()
 
@@ -36,12 +36,12 @@ func (jh *JobHandler) Exists(name string) bool {
 	return exists
 }
 
-func (jh *JobHandler) Execute(name string, args []interface{}) error {
+func (jh *JobHandler) Execute(name string, args ...any) error {
 	handler, exists := jh.handlers[name]
 	if !exists {
 		return fmt.Errorf("handler '%s' not found", name)
 	}
-	return handler(args)
+	return handler(args...)
 }
 
 func (jh *JobHandler) List() []string {

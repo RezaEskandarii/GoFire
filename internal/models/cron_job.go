@@ -6,16 +6,18 @@ import (
 	"time"
 )
 
+import "database/sql"
+
 type CronJob struct {
 	ID         int64
 	Name       string
 	Payload    json.RawMessage
 	Status     state.JobStatus
-	LastError  string
+	LastError  sql.NullString
 	LockedBy   *string
 	LockedAt   *time.Time
 	CreatedAt  time.Time
-	LastRunAt  time.Time
+	LastRunAt  *time.Time
 	NextRunAt  time.Time
 	IsActive   bool
 	Expression string

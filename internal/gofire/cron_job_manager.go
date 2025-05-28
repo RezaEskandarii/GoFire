@@ -63,13 +63,8 @@ func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCoun
 }
 
 func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
-	const cronLock = constants.CronJobLock
-	if err := cm.lock.Acquire(cronLock); err != nil {
-		log.Println("cronJobManager: lock acquire failed:", err)
-		return
-	}
-	defer cm.lock.Release(cronLock)
 
+	log.Println("start to process cron jobs")
 	page := 1
 	for {
 		result, err := cm.repository.FetchDueCronJobs(ctx, page, batchSize)

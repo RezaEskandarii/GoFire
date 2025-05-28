@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"gofire/internal/models"
+	"gofire/internal/state"
+	"log"
 	"math"
 	"time"
 )
@@ -18,15 +20,16 @@ func NewPostgresCronJobRepository(db *sql.DB) *PostgresCronJobRepository {
 	return &PostgresCronJobRepository{db: db}
 }
 
-func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}, expression string) (int64, error) {
+func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, expression string, args ...any) (int64, error) {
+
 	query := `
-		INSERT INTO gofire_schema.cron_jobs (name, next_run_at, payload,expression,created_at,updated_at)
-		VALUES ($1, $2, $3, $4, now(), now())
+		INSERT INTO gofire_schema.cron_jobs (name, next_run_at, payload,expression,created_at,updated_at,status)
+		VALUES ($1, $2, $3, $4, now(), now(),$5)
 		ON CONFLICT (name) DO UPDATE SET
 			next_run_at = $2,
 			payload = $3,
 			updated_at = now(),
-			expression $4
+			expression = $4
 		RETURNING id
 	`
 
@@ -37,7 +40,7 @@ func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName str
 	}
 
 	var jobID int64
-	err = r.db.QueryRowContext(ctx, query, jobName, scheduledAt, payloadJSON, expression).Scan(&jobID)
+	err = r.db.QueryRowContext(ctx, query, jobName, scheduledAt, payloadJSON, expression, state.StatusQueued).Scan(&jobID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert or update cron job: %w", err)
 	}
@@ -55,7 +58,7 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 	// WHERE clause
 	where := "is_active = TRUE AND (next_run_at IS NULL OR next_run_at <= now())"
 	var args []interface{}
-	argIndex := 2
+	argIndex := 1
 
 	countQuery := `SELECT COUNT(*) FROM gofire_schema.cron_jobs WHERE ` + where
 	selectQuery := `
@@ -69,7 +72,7 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 
 	// Count total items
 	var totalItems int
-	err := r.db.QueryRowContext(ctx, countQuery, args[:len(args)-2]...).Scan(&totalItems)
+	err := r.db.QueryRowContext(ctx, countQuery).Scan(&totalItems)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +93,7 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 			&job.LastRunAt, &job.NextRunAt, &job.IsActive, &job.Expression,
 		)
 		if err != nil {
+			log.Println(err.Error())
 			continue
 		}
 		jobs = append(jobs, job)

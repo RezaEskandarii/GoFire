@@ -13,5 +13,6 @@ func CalculateNextRun(expr string, from time.Time) time.Time {
 		log.Printf("cronJobManager: invalid cron expression '%s': %v", expr, err)
 		return from.Add(1 * time.Hour)
 	}
-	return schedule.Next(from)
+	next := schedule.Next(from)
+	return next
 }

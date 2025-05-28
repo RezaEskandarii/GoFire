@@ -10,7 +10,7 @@ import (
 type CronJobRepository interface {
 	// AddOrUpdate inserts a new cron job or updates its scheduled time and arguments if it already exists.
 	// Returns the job's ID.
-	AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}, expression string) (int64, error)
+	AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, expression string, args ...any) (int64, error)
 
 	// FetchDueCronJobs fetches active cron jobs whose NextRunAt <= now, limited by 'limit'.
 	FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error)

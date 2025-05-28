@@ -23,7 +23,7 @@ func NewPostgresEnqueuedJobRepository(db *sql.DB) *PostgresEnqueuedJobRepository
 	}
 }
 
-func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName string, scheduledAt time.Time, args []interface{}) (int64, error) {
+func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
 
 	payloadJSON, err := json.Marshal(args)
 	if err != nil {
@@ -46,7 +46,7 @@ func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName stri
 	err = r.db.QueryRowContext(ctx, query,
 		jobName,
 		payloadJSON,
-		scheduledAt,
+		enqueueAt,
 		constants.MaxRetryAttempt,
 	).Scan(&jobID)
 
@@ -64,7 +64,7 @@ func (r *PostgresEnqueuedJobRepository) FindByID(ctx context.Context, id int64) 
 		       max_attempts,
 		       scheduled_at,
 		       executed_at,
-		       finished_at,
+		       executed_at,
 		       last_error,
 		       locked_by,
 		       locked_at,
@@ -135,7 +135,7 @@ func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 	countQuery := `SELECT COUNT(*) FROM gofire_schema.enqueued_jobs WHERE ` + where
 	selectQuery := `
 		SELECT id, name, payload, status, attempts, max_attempts,
-		       scheduled_at, executed_at, finished_at, last_error,
+		       scheduled_at, executed_at, executed_at, last_error,
 		       locked_by, locked_at, created_at
 		FROM gofire_schema.enqueued_jobs
 		WHERE ` + where + fmt.Sprintf(" ORDER BY scheduled_at ASC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
@@ -217,7 +217,7 @@ func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID i
 	_, err := r.db.ExecContext(ctx, `
  		UPDATE gofire_schema.enqueued_jobs
 		SET status = 'succeeded',
-		    finished_at = NOW()
+		    executed_at = NOW()
 		WHERE id = $1
 	`, jobID)
 

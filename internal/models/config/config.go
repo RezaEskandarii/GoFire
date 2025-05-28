@@ -28,7 +28,7 @@ func (d StorageDriver) String() string {
 
 type MethodHandler struct {
 	MethodName string
-	Func       func(args []interface{}) error
+	Func       func(args ...any) error
 }
 
 type PostgresConfig struct {
@@ -51,7 +51,8 @@ type GofireConfig struct {
 	Handlers             []MethodHandler
 	StorageDriver        StorageDriver
 	WorkerCount          int
-	Interval             int
+	EnqueueInterval      int
+	CronInterval         int
 	BatchSize            int
 	// Storage Configs
 	PostgresConfig PostgresConfig
@@ -60,11 +61,11 @@ type GofireConfig struct {
 
 func NewGofireConfig(instance string) *GofireConfig {
 	return &GofireConfig{
-		Instance:      instance,
-		Interval:      DefaultInterval,
-		WorkerCount:   DefaultWorkerCount,
-		StorageDriver: DefaultStorageDriver,
-		BatchSize:     DefaultBatchSize,
+		Instance:        instance,
+		EnqueueInterval: DefaultInterval,
+		WorkerCount:     DefaultWorkerCount,
+		StorageDriver:   DefaultStorageDriver,
+		BatchSize:       DefaultBatchSize,
 	}
 }
 
@@ -105,7 +106,7 @@ func (c *GofireConfig) WithWorkerCount(n int) *GofireConfig {
 }
 
 func (c *GofireConfig) WithInterval(seconds int) *GofireConfig {
-	c.Interval = seconds
+	c.EnqueueInterval = seconds
 	return c
 }
 

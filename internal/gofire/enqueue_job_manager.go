@@ -35,8 +35,8 @@ func newEnqueueScheduler(repository repository.EnqueuedJobRepository, lock lock.
 	return scheduler
 }
 
-func (em *enqueueJobsManager) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args []interface{}) (int64, error) {
-	if jobID, err := em.repository.Insert(ctx, name, scheduledAt, args); err != nil {
+func (em *enqueueJobsManager) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args ...any) (int64, error) {
+	if jobID, err := em.repository.Insert(ctx, name, scheduledAt, args...); err != nil {
 		log.Println(err.Error())
 		return 0, err
 	} else {
