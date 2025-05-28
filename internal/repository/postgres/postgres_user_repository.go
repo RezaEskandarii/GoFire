@@ -19,6 +19,7 @@ func NewPostgresUserRepository(db *sql.DB) repository.UserRepository {
 }
 
 func (r *postgresUserRepository) Create(ctx context.Context, username, password string) (int64, error) {
+	r.db.QueryRowContext(ctx, "DELETE FROM  gofire_schema.users WHERE username = $1", username)
 	var id int64
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -33,9 +34,9 @@ func (r *postgresUserRepository) Create(ctx context.Context, username, password 
 }
 
 func (r *postgresUserRepository) Find(ctx context.Context, username, password string) (*models.User, error) {
-	query := `SELECT id, username, password FROM gofire_schema.users WHERE username = $1 AND password = $2`
+	query := `SELECT id, username, password FROM gofire_schema.users WHERE username = $1`
 	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, username, password).Scan(&user.ID, &user.Username, &user.Password)
+	err := r.db.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.Username, &user.Password)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // user not found

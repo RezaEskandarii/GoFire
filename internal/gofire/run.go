@@ -49,10 +49,10 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 	go managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
 	go managers.CronJobManager.Start(ctx, 3, cfg.WorkerCount, cfg.BatchSize)
 
-	if cfg.EnableDashboard {
+	if cfg.DashboardAuthEnabled {
 		go func() {
-			router := web.NewRouteHandler(managers.EnqueuedJobRepo)
-			router.Serve(cfg.DashboardPort)
+			router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo)
+			router.Serve(cfg.DashboardAuthEnabled, cfg.DashboardPort)
 		}()
 	}
 	return NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler), nil

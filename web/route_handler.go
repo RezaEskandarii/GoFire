@@ -17,26 +17,33 @@ const (
 )
 
 type HttpRouteHandler struct {
-	repository repository.EnqueuedJobRepository
+	enqueuedJobRepository repository.EnqueuedJobRepository
+	userRepository        repository.UserRepository
 }
 
-func NewRouteHandler(repository repository.EnqueuedJobRepository) HttpRouteHandler {
+func NewRouteHandler(repository repository.EnqueuedJobRepository, userRepository repository.UserRepository) HttpRouteHandler {
 	return HttpRouteHandler{
-		repository: repository,
+		enqueuedJobRepository: repository,
+		userRepository:        userRepository,
 	}
 }
 
-func (handler *HttpRouteHandler) Serve(port int) {
-	handler.handleDashboard()
+func (handler *HttpRouteHandler) Serve(useAuth bool, port int) {
+	handler.handleDashboard(useAuth)
 	handler.handleScheduledJobs()
+	handler.handleLogin()
 
 	addr := fmt.Sprintf(":%d", port)
 	printBanner(addr)
 	http.ListenAndServe(addr, nil)
 }
 
-func (handler *HttpRouteHandler) handleDashboard() {
-	http.HandleFunc("/", handler.dashboardHandler)
+func (handler *HttpRouteHandler) handleDashboard(useAuth bool) {
+	http.HandleFunc("/", authMiddleware(useAuth, handler.dashboardHandler))
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	render(w, "login", nil)
 }
 
 func (handler *HttpRouteHandler) dashboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +62,14 @@ func (handler *HttpRouteHandler) dashboardHandler(w http.ResponseWriter, r *http
 		statuses = append(statuses, status)
 	}
 
-	jobs, err := handler.repository.FetchDueJobs(ctx, pageNumber, PageSize, statuses, nil)
+	jobs, err := handler.enqueuedJobRepository.FetchDueJobs(ctx, pageNumber, PageSize, statuses, nil)
 	if err != nil {
 		log.Printf("failed to fetch jobs: %v", err)
 		http.Error(w, "Failed to fetch jobs", http.StatusInternalServerError)
 		return
 	}
 
-	allJobsCount, _ := handler.repository.CountAllJobsGroupedByStatus(ctx)
+	allJobsCount, _ := handler.enqueuedJobRepository.CountAllJobsGroupedByStatus(ctx)
 
 	data := NewPaginatedDataMap(*jobs).
 		Add("Statuses", state.AllStatuses).
@@ -91,7 +98,7 @@ func (handler *HttpRouteHandler) handleDashboardAction(ctx context.Context, w ht
 		if err != nil {
 			return fmt.Errorf("invalid job id")
 		}
-		if err := handler.repository.RemoveByID(ctx, jobID); err != nil {
+		if err := handler.enqueuedJobRepository.RemoveByID(ctx, jobID); err != nil {
 			return fmt.Errorf("failed to remove job: %w", err)
 		}
 	default:
@@ -108,4 +115,50 @@ func (handler *HttpRouteHandler) handleDashboardAction(ctx context.Context, w ht
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 
 	return nil
+}
+
+func (handler *HttpRouteHandler) handleLogin() {
+	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			render(w, "login", map[string]interface{}{"HideHeader": true})
+		case http.MethodPost:
+			username := r.FormValue("username")
+			password := r.FormValue("password")
+
+			user, err := handler.userRepository.Find(r.Context(), username, password)
+			if err != nil {
+				log.Println(err.Error())
+				http.SetCookie(w, &http.Cookie{
+					Name:     "warning",
+					Value:    url.QueryEscape("invalid username or password"),
+					Path:     "/",
+					MaxAge:   5,
+					HttpOnly: false,
+				})
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+			}
+			if user != nil {
+				http.SetCookie(w, &http.Cookie{
+					Name:     "auth",
+					Value:    generateAuthToken(username),
+					Path:     "/",
+					MaxAge:   3600,
+					HttpOnly: true,
+				})
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+				return
+			}
+			http.SetCookie(w, &http.Cookie{
+				Name:     "warning",
+				Value:    url.QueryEscape("invalid username or password"),
+				Path:     "/",
+				MaxAge:   5,
+				HttpOnly: false,
+			})
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	})
 }

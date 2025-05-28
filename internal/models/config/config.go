@@ -46,12 +46,12 @@ type RedisConfig struct {
 }
 
 type GofireConfig struct {
-	DashboardPort        int             // Port number used to serve the monitoring dashboard (e.g., 8080)
-	DashboardAuthEnabled bool            // Enables basic authentication for the dashboard when set to true
+	DashboardPort int // Port number used to serve the monitoring dashboard (e.g., 8080)
+
 	DashboardUserName    string          // Username required for accessing the dashboard (if auth is enabled)
 	DashboardPassword    string          // Password required for accessing the dashboard (if auth is enabled)
 	Instance             string          // Unique identifier for this instance (used for distinguishing multiple instances)
-	EnableDashboard      bool            // Flag to completely enable or disable the dashboard feature
+	DashboardAuthEnabled bool            // Flag to completely enable or disable the dashboard feature
 	Handlers             []MethodHandler // List of registered job/function handlers
 	StorageDriver        StorageDriver   // Specifies the storage backend (e.g., Redis, PostgreSQL)
 	WorkerCount          int             // Number of concurrent worker goroutines processing jobs
@@ -80,7 +80,7 @@ func NewGofireConfig(instance string) *GofireConfig {
 
 func (c *GofireConfig) WithDashboardPort(port int) *GofireConfig {
 	c.DashboardPort = port
-	c.EnableDashboard = true
+	c.DashboardAuthEnabled = true
 	return c
 }
 
