@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"gofire/internal/repository"
 	"gofire/internal/state"
@@ -20,70 +21,126 @@ type HttpRouteHandler struct {
 	enqueuedJobRepository repository.EnqueuedJobRepository
 	cronJobRepository     repository.CronJobRepository
 	userRepository        repository.UserRepository
+	SecretKey             string
+	UseAuth               bool
+	Port                  int
 }
 
-func NewRouteHandler(repository repository.EnqueuedJobRepository, userRepository repository.UserRepository, cronJobRepository repository.CronJobRepository) HttpRouteHandler {
+func NewRouteHandler(
+	repository repository.EnqueuedJobRepository,
+	userRepository repository.UserRepository,
+	cronJobRepository repository.CronJobRepository,
+	secretKey string,
+	useAuth bool,
+	port int,
+) HttpRouteHandler {
 	return HttpRouteHandler{
 		enqueuedJobRepository: repository,
-		userRepository:        userRepository,
 		cronJobRepository:     cronJobRepository,
+		userRepository:        userRepository,
+		SecretKey:             secretKey,
+		UseAuth:               useAuth,
+		Port:                  port,
 	}
 }
 
-func (handler *HttpRouteHandler) Serve(useAuth bool, port int) {
-	handler.handleDashboard(useAuth)
-	handler.handleCronJobs(useAuth)
-	handler.handleChangeCronJobStatus(useAuth)
+func (handler *HttpRouteHandler) Serve() {
+	handler.handleEnqueued()
+	handler.handleCronJobs()
+	handler.handleChangeCronJobStatus()
+	handler.handleCharts()
+	handler.handleIndex()
 	handler.handleLogin()
 	handler.handleLogout()
-	addr := fmt.Sprintf(":%d", port)
+	addr := fmt.Sprintf(":%d", handler.Port)
 	printBanner(addr)
 	http.ListenAndServe(addr, nil)
 }
 
-func (handler *HttpRouteHandler) handleDashboard(useAuth bool) {
-	http.HandleFunc("/", authMiddleware(useAuth, handler.dashboardHandler))
+func (handler *HttpRouteHandler) handleEnqueued() {
+	http.HandleFunc("/enqueued", handler.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		pageNumber := getPageNumber(r)
+		statusParam := strings.TrimSpace(r.URL.Query().Get("status"))
+		status := state.JobStatus(statusParam)
+
+		if err := handler.handleDashboardAction(ctx, w, r); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var statuses []state.JobStatus
+		if statusParam != "" {
+			statuses = append(statuses, status)
+		}
+
+		jobs, err := handler.enqueuedJobRepository.FetchDueJobs(ctx, pageNumber, PageSize, statuses, nil)
+		if err != nil {
+			log.Printf("failed to fetch jobs: %v", err)
+			http.Error(w, "Failed to fetch jobs", http.StatusInternalServerError)
+			return
+		}
+
+		allJobsCount, _ := handler.enqueuedJobRepository.CountAllJobsGroupedByStatus(ctx)
+
+		data := NewPaginatedDataMap(*jobs).
+			Add("Statuses", state.AllStatuses).
+			Add("CurrentStatus", status).
+			Add("JobsCount", allJobsCount)
+
+		render(w, "enqueued", data.Data)
+	}))
 }
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	render(w, "login", nil)
+func (handler *HttpRouteHandler) handleIndex() {
+	http.HandleFunc("/", handler.authMiddleware(func(writer http.ResponseWriter, request *http.Request) {
+		if isAuthenticated(request, handler.SecretKey) {
+			http.Redirect(writer, request, "charts", http.StatusSeeOther)
+			return
+		}
+		http.Redirect(writer, request, "login", http.StatusSeeOther)
+	}))
 }
 
-func (handler *HttpRouteHandler) dashboardHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	pageNumber := getPageNumber(r)
-	statusParam := strings.TrimSpace(r.URL.Query().Get("status"))
-	status := state.JobStatus(statusParam)
+func (handler *HttpRouteHandler) handleCharts() {
+	http.HandleFunc("/charts", handler.authMiddleware(func(writer http.ResponseWriter, request *http.Request) {
 
-	if err := handler.handleDashboardAction(ctx, w, r); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+		loadCharts := request.URL.Query().Get("loadCharts")
+		if loadCharts != "" {
+			enqueuedJobs, err := handler.enqueuedJobRepository.CountAllJobsGroupedByStatus(request.Context())
+			if err != nil {
+				http.Error(writer, "Failed to get enqueued jobs", http.StatusInternalServerError)
+				log.Println("Error in enqueuedJobs:", err)
+				return
+			}
 
-	var statuses []state.JobStatus
-	if statusParam != "" {
-		statuses = append(statuses, status)
-	}
+			cronJobs, err := handler.cronJobRepository.CountAllJobsGroupedByStatus(request.Context())
+			if err != nil {
+				http.Error(writer, "Failed to get cron jobs", http.StatusInternalServerError)
+				log.Println("Error in cronJobs:", err)
+				return
+			}
 
-	jobs, err := handler.enqueuedJobRepository.FetchDueJobs(ctx, pageNumber, PageSize, statuses, nil)
-	if err != nil {
-		log.Printf("failed to fetch jobs: %v", err)
-		http.Error(w, "Failed to fetch jobs", http.StatusInternalServerError)
-		return
-	}
+			data := map[string]interface{}{
+				"enqueued_jobs": enqueuedJobs,
+				"cron_jobs":     cronJobs,
+			}
 
-	allJobsCount, _ := handler.enqueuedJobRepository.CountAllJobsGroupedByStatus(ctx)
+			writer.Header().Set("Content-Type", "application/json")
+			writer.WriteHeader(http.StatusOK)
 
-	data := NewPaginatedDataMap(*jobs).
-		Add("Statuses", state.AllStatuses).
-		Add("CurrentStatus", status).
-		Add("JobsCount", allJobsCount)
+			if err := json.NewEncoder(writer).Encode(data); err != nil {
+				log.Println("Error encoding JSON:", err)
+			}
+			return
+		}
 
-	render(w, "dashboard", data.Data)
+		render(writer, "charts", nil)
+	}))
 }
 
-func (handler *HttpRouteHandler) handleCronJobs(useAuth bool) {
-	http.HandleFunc("/cron-jobs", authMiddleware(useAuth, func(w http.ResponseWriter, r *http.Request) {
+func (handler *HttpRouteHandler) handleCronJobs() {
+	http.HandleFunc("/cron-jobs", handler.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 
 		ctx := r.Context()
 		pageNumber := getPageNumber(r)
@@ -109,8 +166,8 @@ func (handler *HttpRouteHandler) handleCronJobs(useAuth bool) {
 	}))
 }
 
-func (handler *HttpRouteHandler) handleChangeCronJobStatus(useAuth bool) {
-	http.HandleFunc("/change-cron-job-status", authMiddleware(useAuth, func(w http.ResponseWriter, r *http.Request) {
+func (handler *HttpRouteHandler) handleChangeCronJobStatus() {
+	http.HandleFunc("/change-cron-job-status", handler.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
@@ -220,12 +277,12 @@ func (handler *HttpRouteHandler) handleLogin() {
 			if user != nil {
 				http.SetCookie(w, &http.Cookie{
 					Name:     "auth",
-					Value:    generateAuthToken(username),
+					Value:    generateAuthToken(username, handler.SecretKey),
 					Path:     "/",
 					MaxAge:   3600,
 					HttpOnly: true,
 				})
-				http.Redirect(w, r, "/", http.StatusSeeOther)
+				http.Redirect(w, r, "/charts", http.StatusSeeOther)
 				return
 			}
 			http.SetCookie(w, &http.Cookie{

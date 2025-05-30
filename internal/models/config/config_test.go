@@ -77,16 +77,16 @@ func TestGofireConfig_WithDashboardAuth(t *testing.T) {
 	username := "testuser"
 	password := "testpass"
 
-	result := config.WithDashboardAuth(username, password)
+	result := config.WithAdminDashboardConfig(username, password)
 
 	if !result.DashboardAuthEnabled {
-		t.Error("WithDashboardAuth() DashboardAuthEnabled = false, want true")
+		t.Error("WithAdminDashboardConfig() DashboardAuthEnabled = false, want true")
 	}
 	if result.DashboardUserName != username {
-		t.Errorf("WithDashboardAuth() DashboardUserName = %v, want %v", result.DashboardUserName, username)
+		t.Errorf("WithAdminDashboardConfig() DashboardUserName = %v, want %v", result.DashboardUserName, username)
 	}
 	if result.DashboardPassword != password {
-		t.Errorf("WithDashboardAuth() DashboardPassword = %v, want %v", result.DashboardPassword, password)
+		t.Errorf("WithAdminDashboardConfig() DashboardPassword = %v, want %v", result.DashboardPassword, password)
 	}
 }
 

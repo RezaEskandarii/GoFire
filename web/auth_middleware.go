@@ -2,11 +2,10 @@ package web
 
 import "net/http"
 
-func authMiddleware(useAuth bool, next http.HandlerFunc) http.HandlerFunc {
-	if useAuth {
+func (handler *HttpRouteHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	if handler.UseAuth {
 		return func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie("auth")
-			if err != nil || !isValidAuthToken(cookie.Value) {
+			if !isAuthenticated(r, handler.SecretKey) {
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}

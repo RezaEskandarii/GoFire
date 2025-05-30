@@ -51,8 +51,8 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 
 	if cfg.DashboardAuthEnabled {
 		go func() {
-			router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo, managers.CronJobRepo)
-			router.Serve(cfg.DashboardAuthEnabled, cfg.DashboardPort)
+			router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo, managers.CronJobRepo, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
+			router.Serve()
 		}()
 	}
 	return NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler), nil

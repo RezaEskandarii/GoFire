@@ -50,6 +50,7 @@ type GofireConfig struct {
 
 	DashboardUserName    string          // Username required for accessing the dashboard (if auth is enabled)
 	DashboardPassword    string          // Password required for accessing the dashboard (if auth is enabled)
+	SecretKey            string          // Admin dashboard authentication cookie secret key
 	Instance             string          // Unique identifier for this instance (used for distinguishing multiple instances)
 	DashboardAuthEnabled bool            // Flag to completely enable or disable the dashboard feature
 	Handlers             []MethodHandler // List of registered job/function handlers
@@ -57,11 +58,11 @@ type GofireConfig struct {
 	WorkerCount          int             // Number of concurrent worker goroutines processing jobs
 	EnqueueInterval      int             // Interval (in seconds or milliseconds) for enqueueing jobs from storage
 	CronInterval         int             // Interval (in seconds) to evaluate cron job schedules
-	BatchSize            int             // Number of jobs fetched from storage per batch
+
+	BatchSize int // Number of jobs fetched from storage per batch
 
 	// Configuration for PostgreSQL storage driver
 	PostgresConfig PostgresConfig
-
 	// Configuration for Redis storage driver
 	RedisConfig RedisConfig
 }
@@ -84,10 +85,11 @@ func (c *GofireConfig) WithDashboardPort(port int) *GofireConfig {
 	return c
 }
 
-func (c *GofireConfig) WithDashboardAuth(username, password string) *GofireConfig {
+func (c *GofireConfig) WithAdminDashboardConfig(username, password, secretKey string) *GofireConfig {
 	c.DashboardAuthEnabled = true
 	c.DashboardUserName = username
 	c.DashboardPassword = password
+	c.SecretKey = secretKey
 	return c
 }
 

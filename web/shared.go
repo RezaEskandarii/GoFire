@@ -38,12 +38,15 @@ func getPageNumber(r *http.Request) int {
 	return int(pageNumber)
 }
 
-func printBanner(addr string) {
+func printBanner(port string) {
+	host := "localhost"
+	scheme := "http"
+	appAddr := fmt.Sprintf("%s://%s%s", scheme, host, port)
 	width := 46
 	fmt.Println("##############################################")
 	fmt.Printf("# %-*s #\n", width-4, "")
 	fmt.Printf("# %-*s #\n", width-4, "GoFire Started")
-	fmt.Printf("# %-*s #\n", width-4, fmt.Sprintf("GoFire Server running on %s", addr))
+	fmt.Printf("GoFire Server is starting at %s", appAddr)
 	fmt.Printf("# %-*s #\n", width-4, "")
 	fmt.Println("##############################################")
 }

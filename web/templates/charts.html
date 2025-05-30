@@ -1,0 +1,85 @@
+{{define "content"}}
+<br>
+<br>
+<br>
+
+<div class="row">
+    <div class="col-md-6">
+        <h2>Cron Jobs Status</h2>
+        <canvas id="cronChart" width="600" height="300"></canvas>
+    </div>
+    <div class="col-md-6">
+        <h2>Enqueued Jobs Status</h2>
+        <canvas id="enqueuedChart" width="600" height="300"></canvas>
+    </div>
+
+</div>
+
+
+<script>
+    let cronChart, enqueuedChart;
+
+    function createChart(ctxId, label, data, color) {
+        const ctx = document.getElementById(ctxId).getContext('2d');
+        return new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    label: label,
+                    data: Object.values(data),
+                    backgroundColor: color
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        precision: 0
+                    }
+                }
+            }
+        });
+    }
+
+    function updateCharts() {
+        fetch('/charts?loadCharts=true')
+            .then(res => res.json())
+            .then(data => {
+                const cron = data.cron_jobs;
+                const enqueued = data.enqueued_jobs;
+
+                if (!cronChart || !enqueuedChart) {
+                    cronChart = createChart('cronChart', 'Cron Jobs', cron, 'rgba(52, 152, 219, 0.7)');
+                    enqueuedChart = createChart('enqueuedChart', 'Enqueued Jobs', enqueued, 'rgba(231, 76, 60, 0.7)');
+                } else {
+
+                    cronChart.data.labels = Object.keys(cron);
+                    cronChart.data.datasets[0].data = Object.values(cron);
+                    cronChart.update();
+
+                    enqueuedChart.data.labels = Object.keys(enqueued);
+                    enqueuedChart.data.datasets[0].data = Object.values(enqueued);
+                    enqueuedChart.update();
+                }
+
+                pulseChart('cronChart');
+                pulseChart('enqueuedChart');
+            })
+            .catch(err => console.error('Fetch error:', err));
+    }
+
+
+    function pulseChart(id) {
+        const el = document.getElementById(id);
+        el.classList.remove('pulse');
+        void el.offsetWidth;
+        el.classList.add('pulse');
+    }
+
+    updateCharts();
+
+    setInterval(updateCharts, 3000);
+</script>
+{{ end }}

@@ -206,7 +206,7 @@ func (r *PostgresCronJobRepository) CountAllJobsGroupedByStatus(ctx context.Cont
 	}
 
 	for _, status := range state.AllStatuses {
-		if _, ok := result[status]; !ok && status != state.StatusDead {
+		if _, ok := result[status]; !ok {
 			result[status] = 0
 		}
 	}

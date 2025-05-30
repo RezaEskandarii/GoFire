@@ -121,7 +121,7 @@ func (cm *cronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 		return
 	}
 
-	err := cm.jobHandler.Execute(job.Name, args)
+	err := cm.jobHandler.Execute(job.Name, args...)
 	status := cm.errorToJobStatus(err)
 
 	cm.jobResults <- models.JobResult{

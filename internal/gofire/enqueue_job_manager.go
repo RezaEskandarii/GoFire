@@ -109,7 +109,7 @@ func (em *enqueueJobsManager) ExecuteJobManually(ctx context.Context, jobID int6
 		return fmt.Errorf("invalid payload: %w", err)
 	}
 
-	err = em.jobHandler.Execute(job.Name, args)
+	err = em.jobHandler.Execute(job.Name, args...)
 	status := em.errorToJobStatus(err)
 
 	em.jobResults <- models.JobResult{
@@ -209,7 +209,7 @@ func (em *enqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weig
 		return
 	}
 
-	err := em.jobHandler.Execute(job.Name, args)
+	err := em.jobHandler.Execute(job.Name, args...)
 
 	status := em.errorToJobStatus(err)
 	em.jobResults <- models.JobResult{
