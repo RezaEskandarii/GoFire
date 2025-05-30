@@ -6,6 +6,7 @@ import (
 	_ "github.com/lib/pq"
 	"gofire/internal/constants"
 	"gofire/internal/lock"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -15,6 +16,17 @@ const (
 	schema  = "gofire_schema"
 )
 
+// Init establishes a connection to a database and runs schema initialization and migration scripts.
+// It ensures that only one instance of the application runs the migration logic at a time by using a distributed lock.
+//
+// The function performs the following steps:
+//  1. Opens a database connection using the given URL.
+//  2. Acquires a distributed lock to prevent concurrent migrations.
+//  3. Pings the database to verify the connection.
+//  4. Creates the required schema if it does not exist.
+//  5. Reads and executes SQL scripts from the predefined baseDir.
+//
+// If any step fails, the function returns an error. The lock is released and the database connection is closed automatically.
 func Init(postgresURL string, distributedLock lock.DistributedLockManager) error {
 	db, err := sql.Open("postgres", postgresURL)
 	if err != nil {
@@ -39,13 +51,14 @@ func Init(postgresURL string, distributedLock lock.DistributedLockManager) error
 		return err
 	}
 
-	if scripts, err := readSQLScripts(); err == nil {
-		for _, script := range scripts {
-			fmt.Println(script)
-			_, err = db.Exec(script)
-			if err != nil {
-				return err
-			}
+	scripts, err := readSQLScripts()
+	if err != nil {
+		return err
+	}
+	for _, script := range scripts {
+		log.Println(script)
+		if _, err := db.Exec(script); err != nil {
+			return err
 		}
 	}
 

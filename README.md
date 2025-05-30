@@ -1,0 +1,187 @@
+# GoFire - Distributed Job Scheduler
+
+GoFire is a powerful distributed job scheduling system written in Go. It provides a robust solution for managing both one-time and recurring background tasks with support for distributed execution, job monitoring, and a web dashboard.
+
+## Features
+
+- **Distributed Job Processing**: Run jobs across multiple instances with distributed locking
+- **Multiple Storage Backends**: Support for both PostgreSQL and Redis
+- **Flexible Job Scheduling**:
+  - One-time jobs with custom scheduling
+  - Cron-based recurring jobs
+  - Built-in scheduling helpers (every minute, hour, day, week, month, year)
+- **Job Management**:
+  - Job status tracking
+  - Retry mechanism for failed jobs
+  - Job locking and stale job recovery
+  - Manual job execution
+- **Web Dashboard**: Monitor and control jobs through a web interface
+- **Authentication**: Secure dashboard access with user authentication
+
+## Installation
+
+```bash
+go get github.com/yourusername/gofire
+```
+
+## Quick Start
+
+Here's a basic example of how to use GoFire:
+
+```go
+package main
+
+import (
+    "context"
+    "gofire/internal/gofire"
+    "gofire/internal/models/config"
+)
+
+func main() {
+    // Configure GoFire
+    cfg := config.NewGofireConfig("instance-name").
+        WithInterval(700000).                    // Check interval in milliseconds
+        WithDashboardPort(8080).                 // Web dashboard port
+        WithWorkerCount(15).                     // Number of concurrent workers
+        WithBatchSize(500).                      // Batch size for job processing
+        WithPostgresConfig(config.PostgresConfig{
+            ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
+        }).
+        WithAdminDashboardConfig("admin", "password", "secret-key")
+
+    // Register job handlers
+    cfg.RegisterHandler(config.MethodHandler{
+        MethodName: "send_sms",
+        Func: func(args ...any) error {
+            to := args[0].(string)
+            message := args[1].(string)
+            return sendSms(to, message)
+        },
+    })
+
+    // Initialize GoFire
+    jobManager, err := gofire.SetUp(context.Background(), *cfg)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Schedule a job
+    jobManager.Schedule(context.Background(), "send_sms", "* * * * *", "1234567890", "Hello!")
+}
+```
+
+## Job Manager API
+
+### One-time Jobs
+
+```go
+// Enqueue a job to run at a specific time
+jobID, err := jobManager.Enqueue(ctx, "job_name", time.Now().Add(1*time.Hour), arg1, arg2)
+
+// Remove a queued job
+err := jobManager.RemoveEnqueue(ctx, jobID)
+
+// Find job details
+job, err := jobManager.FindEnqueue(ctx, jobID)
+```
+
+### Recurring Jobs
+
+```go
+// Schedule a job with a cron expression
+jobID, err := jobManager.Schedule(ctx, "job_name", "* * * * *", arg1, arg2)
+
+// Built-in scheduling helpers
+jobID, err := jobManager.ScheduleEveryMinute(ctx, "job_name", arg1, arg2)
+jobID, err := jobManager.ScheduleEveryHour(ctx, "job_name", arg1, arg2)
+jobID, err := jobManager.ScheduleEveryDay(ctx, "job_name", arg1, arg2)
+jobID, err := jobManager.ScheduleEveryWeek(ctx, "job_name", arg1, arg2)
+jobID, err := jobManager.ScheduleEveryMonth(ctx, "job_name", arg1, arg2)
+jobID, err := jobManager.ScheduleEveryYear(ctx, "job_name", arg1, arg2)
+
+// Activate/Deactivate a scheduled job
+jobManager.ActivateSchedule(ctx, jobID)
+jobManager.DeActivateSchedule(ctx, jobID)
+```
+
+### Timer-based Scheduling
+
+```go
+// Schedule a job using timers
+err := jobManager.ScheduleInvokeWithTimer(ctx, "job_name", "* * * * *", arg1, arg2)
+
+// Schedule a custom function using timers
+err := jobManager.ScheduleFuncWithTimer(ctx, "* * * * *", func(args ...any) error {
+    // Custom job logic
+    return nil
+}, arg1, arg2)
+```
+
+## Job Statuses
+
+Jobs can have the following statuses:
+- `queued`: Job is waiting to be processed
+- `processing`: Job is currently being executed
+- `succeeded`: Job completed successfully
+- `failed`: Job execution failed
+- `retrying`: Failed job is scheduled for retry
+- `dead`: Job failed permanently after max retries
+
+## Configuration
+
+### Storage Options
+
+#### PostgreSQL
+```go
+cfg.WithPostgresConfig(config.PostgresConfig{
+    ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
+})
+```
+
+#### Redis
+```go
+cfg.WithRedisConfig(config.RedisConfig{
+    Address:  "localhost:6379",
+    Password: "password",
+    DB:       0,
+})
+```
+
+### Dashboard Configuration
+```go
+cfg.WithAdminDashboardConfig(
+    "username",     // Dashboard username
+    "password",     // Dashboard password
+    "secret-key",   // Secret key for authentication
+)
+```
+
+## Web Dashboard
+
+The web dashboard provides a comprehensive interface for monitoring and managing your jobs. Here are some key features:
+
+### Login Page
+![Login Page](docs/0-login.JPG)
+Secure authentication system to protect your dashboard.
+
+### Job Statistics
+![Job Statistics](docs/1-charts.JPG)
+Real-time charts and statistics showing job execution metrics.
+
+### Enqueued Jobs
+![Enqueued Jobs](docs/2-enqueued.JPG)
+Monitor and manage one-time scheduled jobs.
+
+### Cron Jobs
+![Cron Jobs](docs/3-cron.JPG)
+View and control recurring jobs with cron expressions.
+
+Access the dashboard at `http://localhost:8080` (or your configured port).
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

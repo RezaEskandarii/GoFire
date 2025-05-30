@@ -13,6 +13,27 @@ import (
 	"log"
 )
 
+// SetUp initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
+//
+// It dynamically sets up storage backends (PostgreSQL or Redis), registers job handlers,
+// initializes the repositories and distributed lock manager, and launches all necessary background services,
+// including job enqueuing, cron evaluation, and optionally the admin dashboard.
+//
+// The function performs the following steps:
+//  1. Connects to the specified storage backend based on cfg.StorageDriver (Postgres or Redis).
+//  2. Registers all job handlers defined in cfg.Handlers.
+//  3. Instantiates repositories, schedulers, and locking mechanisms using createJobManagers.
+//  4. Runs schema and migration setup if PostgreSQL is used (protected by a distributed lock).
+//  5. Starts background workers for scheduled and recurring jobs.
+//  6. Launches a web dashboard for job monitoring and manual control (if enabled).
+//
+// Parameters:
+//   - ctx: context used for cancellation and timeout propagation to background workers.
+//   - cfg: full configuration of the system (including storage, handlers, worker count, dashboard options).
+//
+// Returns:
+//   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
+//   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
 func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 	var sqlDB *sql.DB
 	var redisClient *redis.Client
