@@ -6,7 +6,8 @@
 *.dylib
 *.test
 *.out
-
+.main
+cmd
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.coverprofile
 
