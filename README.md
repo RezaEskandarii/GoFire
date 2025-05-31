@@ -1,4 +1,4 @@
-# GoFire - Distributed Job Scheduler
+# GoFire - Job Scheduler
 
 GoFire is a powerful distributed job scheduling system written in Go. It provides a robust solution for managing both one-time and recurring background tasks with support for distributed execution, job monitoring, and a web dashboard.
 
@@ -35,15 +35,19 @@ import (
     "context"
     "gofire/internal/gofire"
     "gofire/internal/models/config"
+    "os"
+    "os/signal"
+    "syscall"
 )
 
 func main() {
     // Configure GoFire
     cfg := config.NewGofireConfig("instance-name").
-        WithInterval(700000).                    // Check interval in milliseconds
-        WithDashboardPort(8080).                 // Web dashboard port
-        WithWorkerCount(15).                     // Number of concurrent workers
-        WithBatchSize(500).                      // Batch size for job processing
+        WithEnqueueInterval(60).                // Enqueue check interval in seconds
+        WithSchedulerInterval(60).              // Scheduler check interval in seconds
+        WithDashboardPort(8080).                // Web dashboard port
+        WithWorkerCount(15).                    // Number of concurrent workers
+        WithBatchSize(500).                     // Batch size for job processing
         WithPostgresConfig(config.PostgresConfig{
             ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
         }).
@@ -51,7 +55,7 @@ func main() {
 
     // Register job handlers
     cfg.RegisterHandler(config.MethodHandler{
-        MethodName: "send_sms",
+        MethodName: "SendSMS",
         Func: func(args ...any) error {
             to := args[0].(string)
             message := args[1].(string)
@@ -64,9 +68,13 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
+    defer jobManager.ShutDown() // Graceful shutdown to release system resources and close database connections
 
+    // Enqueue a job
+    jobManager.Enqueue(ctx, "SendSMS", time.Now().Add(time.Minute*20), "123456789", "Hello!")
+	
     // Schedule a job
-    jobManager.Schedule(context.Background(), "send_sms", "* * * * *", "1234567890", "Hello!")
+    jobManager.Schedule(context.Background(), "DailyEmailNotificationJob", "30 8 * * *", "1234567890", "Hello!")
 }
 ```
 
@@ -129,6 +137,16 @@ Jobs can have the following statuses:
 
 ## Configuration
 
+### Core Settings
+
+```go
+cfg := config.NewGofireConfig("instance-name").
+    WithEnqueueInterval(700)     // Check for new enqueued jobs every 700 seconds
+    WithSchedulerInterval(3)      // Check for scheduled jobs every 3 seconds
+    WithWorkerCount(15)          // Number of concurrent workers
+    WithBatchSize(500)           // Batch size for job processing
+```
+
 ### Storage Options
 
 #### PostgreSQL
@@ -161,22 +179,41 @@ cfg.WithAdminDashboardConfig(
 The web dashboard provides a comprehensive interface for monitoring and managing your jobs. Here are some key features:
 
 ### Login Page
-![Login Page](docs/0-login.JPG)
+![Login Page](web/static/assets/images/0-login.JPG)
 Secure authentication system to protect your dashboard.
 
 ### Job Statistics
-![Job Statistics](docs/1-charts.JPG)
+![Job Statistics](web/static/assets/images/1-charts.JPG)
 Real-time charts and statistics showing job execution metrics.
 
 ### Enqueued Jobs
-![Enqueued Jobs](docs/2-enqueued.JPG)
+![Enqueued Jobs](web/static/assets/images/2-enqueued.JPG)
 Monitor and manage one-time scheduled jobs.
 
 ### Cron Jobs
-![Cron Jobs](docs/3-cron.JPG)
+![Cron Jobs](web/static/assets/images/3-cron.JPG)
 View and control recurring jobs with cron expressions.
 
 Access the dashboard at `http://localhost:8080` (or your configured port).
+
+## Graceful Shutdown
+
+GoFire provides graceful shutdown functionality to ensure proper cleanup of system resources:
+
+```go
+// Initialize GoFire
+jobManager, err := gofire.SetUp(context.Background(), *cfg)
+if err != nil {
+    log.Fatal(err)
+}
+defer jobManager.ShutDown() // Ensures proper cleanup of resources
+
+// The ShutDown method:
+// - Stops all job processors
+// - Closes database connections
+// - Releases distributed locks
+// - Cleans up any temporary resources
+```
 
 ## Contributing
 
