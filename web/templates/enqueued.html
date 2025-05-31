@@ -28,7 +28,7 @@
         <div class="row">
             <div class="col-md-4">
                 <label>Status</label>
-                <form action="/">
+                <form action="/enqueued">
                     <select name="status" class="form-control" onchange="this.form.submit()">
                         <option value="">---all---</option>
                         {{range .Statuses}}
@@ -86,7 +86,7 @@
                     <td>
                         <div class="row">
                             <div class="col">
-                                <form method="post" action="/" class="delete-form">
+                                <form method="post" action="/enqueued" class="delete-form">
                                     <input type="hidden" name="action" value="remove">
                                     <input type="hidden" name="id" value="{{ .ID }}">
                                     <button type="button" class="btn btn-sm btn-danger delete-btn">Remove</button>

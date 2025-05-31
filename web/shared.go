@@ -42,11 +42,11 @@ func printBanner(port string) {
 	host := "localhost"
 	scheme := "http"
 	appAddr := fmt.Sprintf("%s://%s%s", scheme, host, port)
-	width := 46
-	fmt.Println("##############################################")
+	width := 60
+	fmt.Println("############################################################")
 	fmt.Printf("# %-*s #\n", width-4, "")
 	fmt.Printf("# %-*s #\n", width-4, "GoFire Started")
-	fmt.Printf("GoFire Server is starting at %s", appAddr)
+	fmt.Printf("# %-*s%s #\n", width-25, "GoFire Server is starting at ", appAddr)
 	fmt.Printf("# %-*s #\n", width-4, "")
-	fmt.Println("##############################################")
+	fmt.Println("############################################################")
 }

@@ -7,6 +7,9 @@ import (
 	"net/http"
 )
 
+////go:embed templates/*
+//var templateFiles embed.FS
+
 func render(w http.ResponseWriter, tmplName string, data any) {
 	funcMap := template.FuncMap{
 		"StatusBadgeClass": StatusBadgeClass,

@@ -19,16 +19,43 @@
 <script>
     let cronChart, enqueuedChart;
 
-    function createChart(ctxId, label, data, color) {
+    const statusColors = {
+        "queued": "rgba(23, 162, 184, 0.7)",       // bg-info
+        "processing": "rgba(0, 123, 255, 0.7)",    // bg-primary
+        "succeeded": "rgba(40, 167, 69, 0.7)",     // bg-success
+        "failed": "rgba(220, 53, 69, 0.7)",        // bg-danger
+        "retrying": "rgba(255, 193, 7, 0.7)",      // bg-warning
+        "dead": "rgba(52, 58, 64, 0.7)",           // bg-dark
+        "unknown": "rgba(248, 249, 250, 0.7)"      // bg-light
+    };
+
+    function extractChartData(statusMap) {
+        const labels = [];
+        const values = [];
+        const colors = [];
+
+        for (const [status, count] of Object.entries(statusMap)) {
+            labels.push(status);
+            values.push(count);
+            const color = statusColors[status.toLowerCase()] || statusColors["unknown"];
+            colors.push(color);
+        }
+
+        return { labels, values, colors };
+    }
+
+    function createChart(ctxId, label, statusMap) {
         const ctx = document.getElementById(ctxId).getContext('2d');
+        const { labels, values, colors } = extractChartData(statusMap);
+
         return new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: Object.keys(data),
+                labels: labels,
                 datasets: [{
                     label: label,
-                    data: Object.values(data),
-                    backgroundColor: color
+                    data: values,
+                    backgroundColor: colors
                 }]
             },
             options: {
@@ -51,16 +78,19 @@
                 const enqueued = data.enqueued_jobs;
 
                 if (!cronChart || !enqueuedChart) {
-                    cronChart = createChart('cronChart', 'Cron Jobs', cron, 'rgba(52, 152, 219, 0.7)');
-                    enqueuedChart = createChart('enqueuedChart', 'Enqueued Jobs', enqueued, 'rgba(231, 76, 60, 0.7)');
+                    cronChart = createChart('cronChart', 'Cron Jobs', cron);
+                    enqueuedChart = createChart('enqueuedChart', 'Enqueued Jobs', enqueued);
                 } else {
-
-                    cronChart.data.labels = Object.keys(cron);
-                    cronChart.data.datasets[0].data = Object.values(cron);
+                    const cronData = extractChartData(cron);
+                    cronChart.data.labels = cronData.labels;
+                    cronChart.data.datasets[0].data = cronData.values;
+                    cronChart.data.datasets[0].backgroundColor = cronData.colors;
                     cronChart.update();
 
-                    enqueuedChart.data.labels = Object.keys(enqueued);
-                    enqueuedChart.data.datasets[0].data = Object.values(enqueued);
+                    const enqData = extractChartData(enqueued);
+                    enqueuedChart.data.labels = enqData.labels;
+                    enqueuedChart.data.datasets[0].data = enqData.values;
+                    enqueuedChart.data.datasets[0].backgroundColor = enqData.colors;
                     enqueuedChart.update();
                 }
 
