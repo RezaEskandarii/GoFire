@@ -7,6 +7,10 @@ import (
 	"gofire/internal/parser"
 	"gofire/internal/repository"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -57,12 +61,21 @@ type JobManager interface {
 
 	// ScheduleFuncWithTimer runs a custom function on a schedule using timers.
 	ScheduleFuncWithTimer(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error
+
+	// ShutDown listens for system interrupt or termination signals (SIGINT, SIGTERM)
+	// and performs a graceful shutdown of the JobManagerService by closing
+	// the CronJobRepository and EnqueuedJobRepository resources.
+	// It blocks execution until one of the specified signals is received,
+	// then releases resources and logs shutdown progress.
+	ShutDown()
 }
 
 type JobManagerService struct {
 	EnqueuedJobRepository repository.EnqueuedJobRepository
 	CronJobRepository     repository.CronJobRepository
 	JobHandler            JobHandler
+	cancel                context.CancelFunc
+	wg                    sync.WaitGroup
 }
 
 func NewJobManager(enqueuedRepo repository.EnqueuedJobRepository, cronRepo repository.CronJobRepository, jobHandler JobHandler) *JobManagerService {
@@ -193,6 +206,28 @@ func (jm *JobManagerService) runWithTimerInternal(ctx context.Context, expressio
 			}
 		}
 	}
+}
+
+func (jm *JobManagerService) ShutDown() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	// Wait for shutdown signal
+	<-ctx.Done()
+
+	log.Println("Gofire Shutting down gracefully...")
+
+	// Cancel background job processors
+	if jm.cancel != nil {
+		jm.cancel()
+	}
+
+	// Wait for all background job processors to finish
+	jm.wg.Wait()
+
+	jm.CronJobRepository.Close()
+	jm.EnqueuedJobRepository.Close()
+
+	log.Println("Gofire Shutdown complete.")
 }
 
 func (jm *JobManagerService) addOrUpdate(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {

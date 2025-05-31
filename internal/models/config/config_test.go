@@ -44,8 +44,8 @@ func TestNewGofireConfig(t *testing.T) {
 	if config.Instance != instance {
 		t.Errorf("NewGofireConfig() Instance = %v, want %v", config.Instance, instance)
 	}
-	if config.EnqueueInterval != DefaultInterval {
-		t.Errorf("NewGofireConfig() EnqueueInterval = %v, want %v", config.EnqueueInterval, DefaultInterval)
+	if config.EnqueueInterval != DefaultEnqueueInterval {
+		t.Errorf("NewGofireConfig() EnqueueInterval = %v, want %v", config.EnqueueInterval, DefaultEnqueueInterval)
 	}
 	if config.WorkerCount != DefaultWorkerCount {
 		t.Errorf("NewGofireConfig() WorkerCount = %v, want %v", config.WorkerCount, DefaultWorkerCount)
@@ -165,10 +165,10 @@ func TestGofireConfig_WithInterval(t *testing.T) {
 	config := NewGofireConfig("test")
 	interval := 30
 
-	result := config.WithInterval(interval)
+	result := config.WithEnqueueInterval(interval)
 
 	if result.EnqueueInterval != interval {
-		t.Errorf("WithInterval() EnqueueInterval = %v, want %v", result.EnqueueInterval, interval)
+		t.Errorf("WithEnqueueInterval() EnqueueInterval = %v, want %v", result.EnqueueInterval, interval)
 	}
 }
 

@@ -41,7 +41,6 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 	switch cfg.StorageDriver {
 	case config.Postgres:
 		sqlDB = setupPostgres(cfg.PostgresConfig.ConnectionUrl)
-		//defer sqlDB.Close()
 	case config.Redis:
 		redisClient = setupRedis(cfg.RedisConfig.Address, cfg.RedisConfig.Password, cfg.RedisConfig.DB)
 		defer redisClient.Close()
@@ -67,16 +66,30 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 
 	createDashboardUser(ctx, &cfg, managers.UserRepo)
 
-	go managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
-	go managers.CronJobManager.Start(ctx, 3, cfg.WorkerCount, cfg.BatchSize)
-
 	if cfg.DashboardAuthEnabled {
 		go func() {
 			router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo, managers.CronJobRepo, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
 			router.Serve()
 		}()
 	}
-	return NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler), nil
+	jm := NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler)
+
+	jobCtx, cancel := context.WithCancel(ctx)
+	jm.cancel = cancel
+
+	jm.wg.Add(2)
+
+	go func() {
+		defer jm.wg.Done()
+		go managers.EnqueueScheduler.Start(jobCtx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
+	}()
+
+	go func() {
+		defer jm.wg.Done()
+		go managers.CronJobManager.Start(jobCtx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize)
+	}()
+
+	return jm, nil
 }
 
 func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, repo repository.UserRepository) {

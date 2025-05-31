@@ -10,10 +10,11 @@ const (
 )
 
 const (
-	DefaultWorkerCount   = 5
-	DefaultInterval      = 15
-	DefaultStorageDriver = Postgres
-	DefaultBatchSize     = 100
+	DefaultWorkerCount     = 5
+	DefaultEnqueueInterval = 15
+	DefaultStorageDriver   = Postgres
+	DefaultBatchSize       = 100
+	DefaultCronJobInterval = 60
 )
 
 // String converts the StorageDriver enum to a human-readable string.
@@ -57,7 +58,7 @@ type GofireConfig struct {
 	StorageDriver        StorageDriver   // Specifies the storage backend (e.g., Redis, PostgreSQL)
 	WorkerCount          int             // Number of concurrent worker goroutines processing jobs
 	EnqueueInterval      int             // Interval (in seconds or milliseconds) for enqueueing jobs from storage
-	CronInterval         int             // Interval (in seconds) to evaluate cron job schedules
+	ScheduleInterval     int             // Interval (in seconds) to evaluate cron job schedules
 
 	BatchSize int // Number of jobs fetched from storage per batch
 
@@ -71,11 +72,12 @@ type GofireConfig struct {
 // Only the 'Instance' name is required; other fields use predefined defaults.
 func NewGofireConfig(instance string) *GofireConfig {
 	return &GofireConfig{
-		Instance:        instance,
-		EnqueueInterval: DefaultInterval,
-		WorkerCount:     DefaultWorkerCount,
-		StorageDriver:   DefaultStorageDriver,
-		BatchSize:       DefaultBatchSize,
+		Instance:         instance,
+		EnqueueInterval:  DefaultEnqueueInterval,
+		WorkerCount:      DefaultWorkerCount,
+		StorageDriver:    DefaultStorageDriver,
+		BatchSize:        DefaultBatchSize,
+		ScheduleInterval: DefaultCronJobInterval,
 	}
 }
 
@@ -116,8 +118,13 @@ func (c *GofireConfig) WithWorkerCount(n int) *GofireConfig {
 	return c
 }
 
-func (c *GofireConfig) WithInterval(seconds int) *GofireConfig {
+func (c *GofireConfig) WithEnqueueInterval(seconds int) *GofireConfig {
 	c.EnqueueInterval = seconds
+	return c
+}
+
+func (c *GofireConfig) WithScheduleIntervalInterval(seconds int) *GofireConfig {
+	c.ScheduleInterval = seconds
 	return c
 }
 

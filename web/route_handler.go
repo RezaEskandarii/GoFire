@@ -2,16 +2,21 @@ package web
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"gofire/internal/repository"
 	"gofire/internal/state"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+//go:embed static/*
+var staticFiles embed.FS
 
 const (
 	PageSize = 15
@@ -54,6 +59,9 @@ func (handler *HttpRouteHandler) Serve() {
 	handler.handleLogout()
 	addr := fmt.Sprintf(":%d", handler.Port)
 	printBanner(addr)
+	// Serve embedded static files
+	staticContent, _ := fs.Sub(staticFiles, "static")
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))))
 	http.ListenAndServe(addr, nil)
 }
 
@@ -248,7 +256,7 @@ func (handler *HttpRouteHandler) handleDashboardAction(ctx context.Context, w ht
 		MaxAge:   5,
 		HttpOnly: false,
 	})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, "/enqueued", http.StatusSeeOther)
 
 	return nil
 }
@@ -300,6 +308,7 @@ func (handler *HttpRouteHandler) handleLogin() {
 }
 
 func (handler *HttpRouteHandler) handleLogout() {
+
 	http.HandleFunc("/Logout", func(writer http.ResponseWriter, request *http.Request) {
 		http.SetCookie(writer, &http.Cookie{
 			Name:   "auth",
@@ -308,6 +317,6 @@ func (handler *HttpRouteHandler) handleLogout() {
 			MaxAge: -1,
 		})
 
-		http.Redirect(writer, request, "/login", http.StatusPermanentRedirect)
+		http.Redirect(writer, request, "/login", http.StatusSeeOther)
 	})
 }

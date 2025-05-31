@@ -261,3 +261,9 @@ func (r *PostgresCronJobRepository) executeIsActivateQuery(ctx context.Context, 
 	_, err := r.db.ExecContext(ctx, query, isActive, jobID)
 	return err
 }
+
+func (r *PostgresCronJobRepository) Close() {
+	if err := r.db.Close(); err != nil {
+		log.Println(err.Error())
+	}
+}
