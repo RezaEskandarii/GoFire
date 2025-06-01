@@ -245,14 +245,14 @@ func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int64
 }
 
 func (r *PostgresCronJobRepository) Activate(ctx context.Context, jobID int64) error {
-	return r.executeIsActivateQuery(ctx, jobID, true)
+	return r.executeChangeActivateQuery(ctx, jobID, true)
 }
 
 func (r *PostgresCronJobRepository) DeActivate(ctx context.Context, jobID int64) error {
-	return r.executeIsActivateQuery(ctx, jobID, false)
+	return r.executeChangeActivateQuery(ctx, jobID, false)
 }
 
-func (r *PostgresCronJobRepository) executeIsActivateQuery(ctx context.Context, jobID int64, isActive bool) error {
+func (r *PostgresCronJobRepository) executeChangeActivateQuery(ctx context.Context, jobID int64, isActive bool) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET is_active = $1

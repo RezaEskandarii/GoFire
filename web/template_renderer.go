@@ -7,9 +7,6 @@ import (
 	"net/http"
 )
 
-////go:embed templates/*
-//var templateFiles embed.FS
-
 func render(w http.ResponseWriter, tmplName string, data any) {
 	funcMap := template.FuncMap{
 		"StatusBadgeClass": StatusBadgeClass,
@@ -19,9 +16,9 @@ func render(w http.ResponseWriter, tmplName string, data any) {
 
 	tmpl := template.New("layout.html").Funcs(funcMap)
 
-	tmpl = template.Must(tmpl.ParseFiles(
-		"web/templates/layout.html",
-		fmt.Sprintf("web/templates/%s.html", tmplName),
+	tmpl = template.Must(tmpl.ParseFS(templateFiles,
+		"templates/layout.html",
+		fmt.Sprintf("templates/%s.html", tmplName),
 	))
 
 	err := tmpl.ExecuteTemplate(w, "layout.html", data)
@@ -42,7 +39,6 @@ func StatusBadgeClass(status state.JobStatus) string {
 		return "badge bg-danger"
 	case state.StatusRetrying:
 		return "badge bg-warning"
-
 	case state.StatusDead:
 		return "badge bg-dark"
 	default:

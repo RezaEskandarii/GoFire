@@ -180,6 +180,28 @@ func (jm *JobManagerService) ScheduleFuncWithTimer(ctx context.Context, expressi
 	return jm.runWithTimerInternal(ctx, expression, fn, args...)
 }
 
+func (jm *JobManagerService) ShutDown() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	// Wait for shutdown signal
+	<-ctx.Done()
+
+	log.Println("Gofire Shutting down gracefully...")
+
+	// Cancel background job processors
+	if jm.cancel != nil {
+		jm.cancel()
+	}
+
+	// Wait for all background job processors to finish
+	jm.wg.Wait()
+
+	jm.CronJobRepository.Close()
+	jm.EnqueuedJobRepository.Close()
+
+	log.Println("Gofire Shutdown complete.")
+}
+
 func (jm *JobManagerService) runWithTimerInternal(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error {
 	for {
 		next := parser.CalculateNextRun(expression, time.Now())
@@ -206,28 +228,6 @@ func (jm *JobManagerService) runWithTimerInternal(ctx context.Context, expressio
 			}
 		}
 	}
-}
-
-func (jm *JobManagerService) ShutDown() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	// Wait for shutdown signal
-	<-ctx.Done()
-
-	log.Println("Gofire Shutting down gracefully...")
-
-	// Cancel background job processors
-	if jm.cancel != nil {
-		jm.cancel()
-	}
-
-	// Wait for all background job processors to finish
-	jm.wg.Wait()
-
-	jm.CronJobRepository.Close()
-	jm.EnqueuedJobRepository.Close()
-
-	log.Println("Gofire Shutdown complete.")
 }
 
 func (jm *JobManagerService) addOrUpdate(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {

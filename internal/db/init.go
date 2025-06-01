@@ -7,13 +7,10 @@ import (
 	"gofire/internal/constants"
 	"gofire/internal/lock"
 	"log"
-	"os"
-	"path/filepath"
 )
 
 const (
-	baseDir = "./migrations"
-	schema  = "gofire_schema"
+	schema = "gofire_schema"
 )
 
 // Init establishes a connection to a database and runs schema initialization and migration scripts.
@@ -67,7 +64,7 @@ func Init(postgresURL string, distributedLock lock.DistributedLockManager) error
 
 func readSQLScripts() ([]string, error) {
 
-	entries, err := os.ReadDir(baseDir)
+	entries, err := MigrationFiles.ReadDir("migrations")
 	if err != nil {
 		return nil, err
 	}
@@ -78,12 +75,10 @@ func readSQLScripts() ([]string, error) {
 			continue
 		}
 
-		path := filepath.Join(baseDir, entry.Name())
-		content, err := os.ReadFile(path)
+		content, err := MigrationFiles.ReadFile("migrations/" + entry.Name())
 		if err != nil {
 			return nil, err
 		}
-
 		scripts = append(scripts, string(content))
 	}
 
