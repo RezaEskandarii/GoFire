@@ -1,3 +1,9 @@
+document.addEventListener("DOMContentLoaded", () => {
+    const parts = window.location.pathname.split("/").filter(p => p);
+    const lastPart = parts[parts.length - 1] || "Home";
+
+    document.title = decodeURIComponent(lastPart);
+});
 function goToPage(e, action) {
     const url = new URL(window.location.href);
     let page = parseInt(url.searchParams.get("page")) || 1;

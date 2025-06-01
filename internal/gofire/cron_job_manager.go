@@ -150,7 +150,7 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 						cm.repository.MarkFailure(ctx, res.JobID, res.Err.Error())
 					}
 				default:
-					log.Printf("cronJobManager: unknown status: %cm", res.Status)
+					log.Printf("cronJobManager: unknown status: %sm", res.Status)
 				}
 				cm.repository.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun)
 			}

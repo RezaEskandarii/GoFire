@@ -140,7 +140,7 @@ func (em *enqueueJobsManager) startResultProcessor(ctx context.Context) {
 						em.repository.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts)
 					}
 				default:
-					log.Printf("unknown job status: %em", res.Status)
+					log.Printf("unknown job status: %sm", res.Status)
 				}
 			}
 		}
