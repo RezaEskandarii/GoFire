@@ -41,6 +41,8 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 	switch cfg.StorageDriver {
 	case config.Postgres:
 		sqlDB = setupPostgres(cfg.PostgresConfig.ConnectionUrl)
+		setPostgresConnectionPool(sqlDB)
+
 	case config.Redis:
 		redisClient = setupRedis(cfg.RedisConfig.Address, cfg.RedisConfig.Password, cfg.RedisConfig.DB)
 		defer redisClient.Close()
@@ -90,6 +92,11 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 	}()
 
 	return jm, nil
+}
+
+func setPostgresConnectionPool(sqlDB *sql.DB) {
+	sqlDB.SetMaxOpenConns(80)
+	sqlDB.SetMaxIdleConns(10)
 }
 
 func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, repo repository.UserRepository) {

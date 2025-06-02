@@ -81,17 +81,12 @@ func NewGofireConfig(instance string) *GofireConfig {
 	}
 }
 
-func (c *GofireConfig) WithDashboardPort(port int) *GofireConfig {
-	c.DashboardPort = port
-	c.DashboardAuthEnabled = true
-	return c
-}
-
-func (c *GofireConfig) WithAdminDashboardConfig(username, password, secretKey string) *GofireConfig {
+func (c *GofireConfig) WithAdminDashboardConfig(username, password, secretKey string, port int) *GofireConfig {
 	c.DashboardAuthEnabled = true
 	c.DashboardUserName = username
 	c.DashboardPassword = password
 	c.SecretKey = secretKey
+	c.DashboardPort = port
 	return c
 }
 
