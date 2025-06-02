@@ -3,6 +3,8 @@ package gofire
 import (
 	"context"
 	"fmt"
+	"gofire/internal/constants"
+	"gofire/internal/lock"
 	"gofire/internal/models"
 	"gofire/internal/parser"
 	"gofire/internal/repository"
@@ -74,13 +76,15 @@ type JobManagerService struct {
 	EnqueuedJobRepository repository.EnqueuedJobRepository
 	CronJobRepository     repository.CronJobRepository
 	JobHandler            JobHandler
+	lockManager           lock.DistributedLockManager
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
 }
 
-func NewJobManager(enqueuedRepo repository.EnqueuedJobRepository, cronRepo repository.CronJobRepository, jobHandler JobHandler) *JobManagerService {
+func NewJobManager(enqueuedRepo repository.EnqueuedJobRepository, cronRepo repository.CronJobRepository, jobHandler JobHandler, lockManager lock.DistributedLockManager) *JobManagerService {
 	return &JobManagerService{
 		EnqueuedJobRepository: enqueuedRepo,
+		lockManager:           lockManager,
 		CronJobRepository:     cronRepo,
 		JobHandler:            jobHandler,
 	}
@@ -198,6 +202,10 @@ func (jm *JobManagerService) ShutDown() {
 
 	jm.CronJobRepository.Close()
 	jm.EnqueuedJobRepository.Close()
+
+	for _, lockID := range constants.Locks {
+		jm.lockManager.Release(lockID)
+	}
 
 	log.Println("Gofire Shutdown complete.")
 }

@@ -10,6 +10,16 @@ const (
 	StartCronJobLock
 )
 
+var Locks = []int{
+	MigrationLock,
+	EnqueueLock,
+	StartEnqueueLock,
+	ScheduleLock,
+	RetryLock,
+	CronJobLock,
+	StartCronJobLock,
+}
+
 const (
 	MaxRetryAttempt = 3
 )

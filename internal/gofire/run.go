@@ -74,7 +74,7 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 			router.Serve()
 		}()
 	}
-	jm := NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler)
+	jm := NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler, managers.LockMgr)
 
 	jobCtx, cancel := context.WithCancel(ctx)
 	jm.cancel = cancel
