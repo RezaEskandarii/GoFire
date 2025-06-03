@@ -143,6 +143,7 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
 						cm.repository.MarkSuccess(ctx, res.JobID)
+						cm.repository.UnLockJob(ctx, res.JobID)
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {

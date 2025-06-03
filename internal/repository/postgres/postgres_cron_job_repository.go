@@ -49,14 +49,29 @@ func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName str
 }
 
 func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error) {
-
 	if page < 1 {
 		page = 1
 	}
 	offset := (page - 1) * pageSize
 
-	// WHERE clause
-	where := "is_active = TRUE AND (next_run_at IS NULL OR next_run_at <= now())"
+	// TTL for job lock expiration.
+	// Jobs in 'processing' status will be considered "due" again if locked_at is older than this.
+	// WARNING: In multi-node / multi-pod environments, this logic can lead to duplicate job execution
+	// if there's no distributed lock mechanism in place.
+	// It's strongly recommended to use a distributed lock (e.g., Redis, PostgreSQL advisory locks, etc.)
+	// along with this TTL to ensure job safety across nodes.
+	lockTTL := "60 minutes"
+
+	where := `
+		is_active = TRUE
+		AND (next_run_at IS NULL OR next_run_at <= now())
+		AND (
+			status = 'queued'
+			OR status = 'retrying'
+			OR (status = 'processing' AND locked_at < now() - interval '` + lockTTL + `')
+		)
+	`
+
 	var args []interface{}
 	argIndex := 1
 
@@ -66,7 +81,7 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 		       locked_by, locked_at, created_at,
 		       last_run_at, next_run_at, is_active, expression
 		FROM gofire_schema.cron_jobs
-		WHERE ` + where + fmt.Sprintf(" ORDER BY next_run_at ASC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+		WHERE ` + where + fmt.Sprintf(" ORDER BY next_run_at ASC NULLS FIRST LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 
 	args = append(args, pageSize, offset)
 
