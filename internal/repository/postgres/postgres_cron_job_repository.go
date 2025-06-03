@@ -227,7 +227,10 @@ func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID
 func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
-	SET status = $1, last_error = NULL
+	SET status = $1,
+	        last_error = NULL,
+	        SET locked_at = NULL,
+            locked_by = NULL
 	WHERE id = $2;
 	`
 	_, err := r.db.ExecContext(ctx, query, state.StatusSucceeded, jobID)
@@ -242,6 +245,37 @@ func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int64
 	`
 	_, err := r.db.ExecContext(ctx, query, errMsg, jobID)
 	return err
+}
+
+func (r *PostgresCronJobRepository) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
+
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE gofire_schema.cron_jobs
+		SET locked_at = NOW(), 
+		    executed_at = NOW(),
+		    locked_by = $1,
+		    status = $2
+		WHERE id = $3 AND (status = $4 OR status = $5)
+	`, lockedBy, state.StatusProcessing, jobID, state.StatusQueued, state.StatusRetrying)
+	if err != nil {
+		return false, err
+	}
+	affected, _ := res.RowsAffected()
+	return affected > 0, nil
+}
+
+func (r *PostgresCronJobRepository) UnLockJob(ctx context.Context, jobID int64) (bool, error) {
+	res, err := r.db.ExecContext(ctx, `
+        UPDATE gofire_schema.cron_jobs
+        SET locked_at = NULL,
+            locked_by = NULL
+        WHERE id = $1
+    `, jobID)
+	if err != nil {
+		return false, err
+	}
+	affected, _ := res.RowsAffected()
+	return affected > 0, nil
 }
 
 func (r *PostgresCronJobRepository) Activate(ctx context.Context, jobID int64) error {

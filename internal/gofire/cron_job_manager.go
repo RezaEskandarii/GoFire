@@ -68,6 +68,11 @@ func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.We
 		}
 
 		for _, job := range result.Items {
+			ok, err := cm.repository.LockJob(ctx, job.ID, cm.instance)
+			if err != nil || !ok {
+				log.Println(err)
+				continue
+			}
 			if err := sem.Acquire(ctx, 1); err != nil {
 				log.Println("cronJobManager: semaphore error:", err)
 				continue

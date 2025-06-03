@@ -16,6 +16,10 @@ type CronJobRepository interface {
 	// FetchDueCronJobs fetches active cron jobs whose NextRunAt <= now, limited by 'limit'.
 	FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error)
 
+	LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error)
+
+	UnLockJob(ctx context.Context, jobID int64) (bool, error)
+
 	GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error)
 
 	CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error)
