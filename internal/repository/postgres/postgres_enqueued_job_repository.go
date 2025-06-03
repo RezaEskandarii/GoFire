@@ -133,6 +133,10 @@ func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 		where += " AND status IN (" + strings.Join(placeholders, ", ") + ")"
 	}
 
+	// Apply lock TTL logic for 'processing' jobs
+	lockTTL := "60 minutes"
+	where += fmt.Sprintf(" AND (status != 'processing' OR locked_at < now() - interval '%s')", lockTTL)
+
 	countQuery := `SELECT COUNT(*) FROM gofire_schema.enqueued_jobs WHERE ` + where
 	selectQuery := `
 		SELECT id, name, payload, status, attempts, max_attempts,
