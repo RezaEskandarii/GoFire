@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gofire/internal/constants"
 	"gofire/internal/lock"
 	"gofire/internal/models"
 	"gofire/internal/parser"
@@ -38,11 +37,6 @@ func newCronJobManager(repo repository.CronJobRepository, lock lock.DistributedL
 }
 
 func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCount, batchSize int) error {
-	const cronJobLock = constants.StartCronJobLock
-	if err := cm.lock.Acquire(cronJobLock); err != nil {
-		return err
-	}
-	defer cm.lock.Release(cronJobLock)
 
 	ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
 	defer ticker.Stop()

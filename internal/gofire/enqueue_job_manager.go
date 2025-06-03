@@ -45,12 +45,7 @@ func (em *enqueueJobsManager) Enqueue(ctx context.Context, name string, schedule
 }
 
 func (em *enqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
-
 	const retryLock = constants.RetryLock
-	if err := em.lock.Acquire(retryLock); err != nil {
-		return
-	}
-	defer em.lock.Release(retryLock)
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -60,17 +55,16 @@ func (em *enqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if err := em.lock.Acquire(retryLock); err != nil {
+				return
+			}
 			em.repository.MarkRetryFailedJobs(ctx)
+			em.lock.Release(retryLock)
 		}
 	}
 }
 
 func (em *enqueueJobsManager) Start(ctx context.Context, interval, workerCount, batchSize int) error {
-	const enqueueLock = constants.StartEnqueueLock
-	if err := em.lock.Acquire(enqueueLock); err != nil {
-		return err
-	}
-	defer em.lock.Release(enqueueLock)
 
 	em.startResultProcessor(ctx)
 
