@@ -267,7 +267,6 @@ func (r *PostgresCronJobRepository) LockJob(ctx context.Context, jobID int64, lo
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.cron_jobs
 		SET locked_at = NOW(), 
-		    executed_at = NOW(),
 		    locked_by = $1,
 		    status = $2
 		WHERE id = $3 AND (status = $4 OR status = $5)
@@ -311,8 +310,6 @@ func (r *PostgresCronJobRepository) executeChangeActivateQuery(ctx context.Conte
 	return err
 }
 
-func (r *PostgresCronJobRepository) Close() {
-	if err := r.db.Close(); err != nil {
-		log.Println(err.Error())
-	}
+func (r *PostgresCronJobRepository) Close() error {
+	return r.db.Close()
 }

@@ -39,5 +39,5 @@ type CronJobRepository interface {
 	// Deactivate Job
 	DeActivate(ctx context.Context, jobID int64) error
 
-	Close()
+	Close() error
 }

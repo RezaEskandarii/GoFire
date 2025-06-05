@@ -43,5 +43,5 @@ type EnqueuedJobRepository interface {
 	// MarkRetryFailedJobs flags jobs that have failed but are eligible to be retried.
 	MarkRetryFailedJobs(ctx context.Context) error
 
-	Close()
+	Close() error
 }

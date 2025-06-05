@@ -200,8 +200,13 @@ func (jm *JobManagerService) ShutDown() {
 	// Wait for all background job processors to finish
 	jm.wg.Wait()
 
-	jm.CronJobRepository.Close()
-	jm.EnqueuedJobRepository.Close()
+	if err := jm.CronJobRepository.Close(); err != nil {
+		log.Println(err.Error())
+	}
+
+	if err := jm.EnqueuedJobRepository.Close(); err != nil {
+		log.Println(err.Error())
+	}
 
 	for _, lockID := range constants.Locks {
 		jm.lockManager.Release(lockID)

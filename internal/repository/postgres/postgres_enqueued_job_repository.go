@@ -8,7 +8,6 @@ import (
 	"gofire/internal/constants"
 	"gofire/internal/models"
 	"gofire/internal/state"
-	"log"
 	"math"
 	"strings"
 	"time"
@@ -304,10 +303,8 @@ func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.
 	return result, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) Close() {
-	if err := r.db.Close(); err != nil {
-		log.Println(err.Error())
-	}
+func (r *PostgresEnqueuedJobRepository) Close() error {
+	return r.db.Close()
 }
 
 func (r *PostgresEnqueuedJobRepository) mapSqlRowsToJob(rows *sql.Rows) (*models.EnqueuedJob, error) {
