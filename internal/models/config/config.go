@@ -1,50 +1,7 @@
 package config
 
+import "C"
 import "fmt"
-
-type StorageDriver int
-
-const (
-	Postgres StorageDriver = iota + 1
-	Redis                  // seconds
-)
-
-const (
-	DefaultWorkerCount     = 5
-	DefaultEnqueueInterval = 15
-	DefaultStorageDriver   = Postgres
-	DefaultBatchSize       = 100
-	DefaultCronJobInterval = 60
-)
-
-// String converts the StorageDriver enum to a human-readable string.
-func (d StorageDriver) String() string {
-	switch d {
-	case Redis:
-		return "redis"
-	case Postgres:
-		return "postgres"
-	}
-	return "unknown"
-}
-
-// MethodHandler holds the name and actual function of a job handler.
-type MethodHandler struct {
-	MethodName string                  // Name used to identify the handler (e.g., "SendEmail")
-	Func       func(args ...any) error // The function to execute for this handler
-}
-
-// PostgresConfig holds PostgreSQL connection settings.
-type PostgresConfig struct {
-	ConnectionUrl string
-}
-
-// RedisConfig holds Redis connection settings.
-type RedisConfig struct {
-	Address  string // Redis server address (e.g., "localhost:6379")
-	Password string // Password for Redis authentication (optional)
-	DB       int    // Redis database number to use (e.g., 0 by default)
-}
 
 type GofireConfig struct {
 	DashboardPort int // Port number used to serve the monitoring dashboard (e.g., 8080)
@@ -66,6 +23,42 @@ type GofireConfig struct {
 	PostgresConfig PostgresConfig
 	// Configuration for Redis storage driver
 	RedisConfig RedisConfig
+
+	// WriteToRabbitQueue determines whether jobs should be first sent to RabbitMQ queue.
+	// If true, jobs are enqueued in RabbitMQ before being processed and batch-inserted into the database.
+	WriteToRabbitQueue bool
+
+	MQDriver MQDriver
+
+	// RabbitMQConfig holds the configuration settings for connecting to RabbitMQ,
+	// such as connection URL, queue names, and other relevant parameters.
+	RabbitMQConfig *RabbitMQConfig
+}
+
+// MethodHandler holds the name and actual function of a job handler.
+type MethodHandler struct {
+	MethodName string                  // Name used to identify the handler (e.g., "SendEmail")
+	Func       func(args ...any) error // The function to execute for this handler
+}
+
+// PostgresConfig holds PostgreSQL connection settings.
+type PostgresConfig struct {
+	ConnectionUrl string
+}
+
+// RedisConfig holds Redis connection settings.
+type RedisConfig struct {
+	Address  string // Redis server address (e.g., "localhost:6379")
+	Password string // Password for Redis authentication (optional)
+	DB       int    // Redis database number to use (e.g., 0 by default)
+}
+
+type RabbitMQConfig struct {
+	URL         string // For example:  amqp://guest:guest@localhost:5672/
+	Exchange    string
+	Queue       string
+	RoutingKey  string
+	ContentType string
 }
 
 // NewGofireConfig creates a new instance of GofireConfig with default values.
@@ -130,5 +123,23 @@ func (c *GofireConfig) WithBatchSize(batchSize int) *GofireConfig {
 
 func (c *GofireConfig) RegisterHandler(handler MethodHandler) *GofireConfig {
 	c.Handlers = append(c.Handlers, handler)
+	return c
+}
+
+// WithWriteToRabbitMQueue enables or disables writing jobs first to RabbitMQ queue.
+// When enabled (writeToQueue = true), jobs are initially pushed to RabbitMQ,
+// and later consumed in batches for bulk writing into the database.
+// This approach helps decouple job submission from database writes,
+// improving throughput and scalability.
+func (c *GofireConfig) WithWriteToRabbitMQueue(writeToQueue bool) *GofireConfig {
+	c.WriteToRabbitQueue = writeToQueue
+	c.MQDriver = RabbitMQ
+	return c
+}
+
+func (c *GofireConfig) WithRabbitMQConfig(cfg RabbitMQConfig) *GofireConfig {
+	c.RabbitMQConfig = &cfg
+	c.WriteToRabbitQueue = true
+	c.MQDriver = RabbitMQ
 	return c
 }
