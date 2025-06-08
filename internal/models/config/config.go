@@ -1,6 +1,5 @@
 package config
 
-import "C"
 import "fmt"
 
 type GofireConfig struct {
@@ -71,6 +70,7 @@ func NewGofireConfig(instance string) *GofireConfig {
 		StorageDriver:    DefaultStorageDriver,
 		BatchSize:        DefaultBatchSize,
 		ScheduleInterval: DefaultCronJobInterval,
+		RabbitMQConfig:   &RabbitMQConfig{},
 	}
 }
 
