@@ -303,6 +303,54 @@ func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.
 	return result, nil
 }
 
+func (r *PostgresEnqueuedJobRepository) BulkInsert(ctx context.Context, batch []models.Job) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	query := `
+        INSERT INTO gofire_schema.enqueued_jobs (
+            name,
+            payload,
+            scheduled_at,
+            max_attempts,
+            created_at
+        ) VALUES 
+    `
+
+	var args []interface{}
+	var placeholders []string
+
+	for i, job := range batch {
+		payloadJSON, err := json.Marshal(job.Args)
+		if err != nil {
+			return fmt.Errorf("failed to marshal job args at index %d: %w", i, err)
+		}
+
+		offset := i * 4
+		placeholders = append(placeholders,
+			fmt.Sprintf("($%d, $%d, $%d, $%d, now())",
+				offset+1, offset+2, offset+3, offset+4),
+		)
+
+		args = append(args,
+			job.Name,
+			payloadJSON,
+			job.ScheduledAt,
+			constants.MaxRetryAttempt,
+		)
+	}
+
+	query += strings.Join(placeholders, ",")
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("bulk insert failed: %w", err)
+	}
+
+	return nil
+}
+
 func (r *PostgresEnqueuedJobRepository) Close() error {
 	return r.db.Close()
 }

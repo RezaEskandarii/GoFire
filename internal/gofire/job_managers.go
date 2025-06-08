@@ -2,8 +2,10 @@ package gofire
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/redis/go-redis/v9"
 	"gofire/internal/lock"
+	"gofire/internal/message_broaker"
 	"gofire/internal/models/config"
 	"gofire/internal/repository"
 )
@@ -15,6 +17,7 @@ type JobManagers struct {
 	LockMgr          lock.DistributedLockManager
 	EnqueueScheduler enqueueJobsManager
 	CronJobManager   cronJobManager
+	MessageBroker    message_broaker.MessageBroker
 }
 
 func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redis.Client, jobHandler JobHandler) (*JobManagers, error) {
@@ -24,9 +27,20 @@ func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redi
 
 	lockMgr := CreateDistributedLockManager(cfg.StorageDriver, sqlDB, redisClient)
 
-	enqueueScheduler := newEnqueueScheduler(enqueuedJobRepo, lockMgr, jobHandler, cfg.Instance)
 	cronJobManager := newCronJobManager(cronJobRepo, lockMgr, jobHandler, cfg.Instance)
 
+	rabbitCfg := cfg.RabbitMQConfig
+
+	var messageBroker *message_broaker.RabbitMQ
+	if cfg.WriteToRabbitQueue {
+		mBroker, err := message_broaker.NewRabbitMQ(rabbitCfg.URL, rabbitCfg.Exchange, rabbitCfg.Queue, "")
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)
+		}
+		messageBroker = mBroker
+	}
+
+	enqueueScheduler := newEnqueueScheduler(enqueuedJobRepo, lockMgr, jobHandler, messageBroker, cfg.Instance)
 	return &JobManagers{
 		EnqueuedJobRepo:  enqueuedJobRepo,
 		CronJobRepo:      cronJobRepo,
@@ -34,5 +48,6 @@ func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redi
 		LockMgr:          lockMgr,
 		EnqueueScheduler: enqueueScheduler,
 		CronJobManager:   cronJobManager,
+		MessageBroker:    messageBroker,
 	}, nil
 }

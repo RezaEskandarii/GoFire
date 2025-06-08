@@ -27,6 +27,13 @@ func init() {
 		WithWorkerCount(15).
 		WithBatchSize(500).
 		WithPostgresConfig(config.PostgresConfig{ConnectionUrl: postgresURL})
+	cfg = cfg.WithRabbitMQConfig(config.RabbitMQConfig{
+		URL:         "amqp://guest:guest@localhost:5672/",
+		Exchange:    "gofire_exchange",
+		Queue:       "gofire_jobs",
+		RoutingKey:  "jobs.enqueue",
+		ContentType: "application/json",
+	}).WithWriteToRabbitMQueue(true)
 
 	for i := 0; i < 20; i++ {
 		jobName := fmt.Sprintf("job-%d", i)
