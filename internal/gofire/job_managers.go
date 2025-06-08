@@ -32,7 +32,7 @@ func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redi
 	rabbitCfg := cfg.RabbitMQConfig
 
 	var messageBroker *message_broaker.RabbitMQ
-	if cfg.WriteToRabbitQueue {
+	if cfg.UseQueueWriter {
 		mBroker, err := message_broaker.NewRabbitMQ(rabbitCfg.URL, rabbitCfg.Exchange, rabbitCfg.Queue, "")
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)

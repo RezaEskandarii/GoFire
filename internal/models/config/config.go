@@ -23,9 +23,9 @@ type GofireConfig struct {
 	// Configuration for Redis storage driver
 	RedisConfig RedisConfig
 
-	// WriteToRabbitQueue determines whether jobs should be first sent to RabbitMQ queue.
+	// UseQueueWriter determines whether jobs should be first sent to RabbitMQ queue.
 	// If true, jobs are enqueued in RabbitMQ before being processed and batch-inserted into the database.
-	WriteToRabbitQueue bool
+	UseQueueWriter bool
 
 	MQDriver MQDriver
 
@@ -126,20 +126,20 @@ func (c *GofireConfig) RegisterHandler(handler MethodHandler) *GofireConfig {
 	return c
 }
 
-// WithWriteToRabbitMQueue enables or disables writing jobs first to RabbitMQ queue.
+// UseRabbitMQueueWriter enables or disables writing jobs first to RabbitMQ queue.
 // When enabled (writeToQueue = true), jobs are initially pushed to RabbitMQ,
 // and later consumed in batches for bulk writing into the database.
 // This approach helps decouple job submission from database writes,
 // improving throughput and scalability.
-func (c *GofireConfig) WithWriteToRabbitMQueue(writeToQueue bool) *GofireConfig {
-	c.WriteToRabbitQueue = writeToQueue
+func (c *GofireConfig) UseRabbitMQueueWriter(writeToQueue bool) *GofireConfig {
+	c.UseQueueWriter = writeToQueue
 	c.MQDriver = RabbitMQ
 	return c
 }
 
 func (c *GofireConfig) WithRabbitMQConfig(cfg RabbitMQConfig) *GofireConfig {
 	c.RabbitMQConfig = &cfg
-	c.WriteToRabbitQueue = true
+	c.UseQueueWriter = true
 	c.MQDriver = RabbitMQ
 	return c
 }

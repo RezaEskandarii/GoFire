@@ -35,19 +35,9 @@ import (
 //   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
 //   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
 func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
-	var sqlDB *sql.DB
-	var redisClient *redis.Client
-
-	switch cfg.StorageDriver {
-	case config.Postgres:
-		sqlDB = setupPostgres(cfg.PostgresConfig.ConnectionUrl)
-		setPostgresConnectionPool(sqlDB)
-
-	case config.Redis:
-		redisClient = setupRedis(cfg.RedisConfig.Address, cfg.RedisConfig.Password, cfg.RedisConfig.DB)
-		defer redisClient.Close()
-	default:
-		return nil, fmt.Errorf("unsupported driver: %v", cfg.StorageDriver)
+	sqlDB, redisClient, err := getStorageConnections(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	jobHandler := NewJobHandler()
@@ -69,36 +59,81 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 	createDashboardUser(ctx, &cfg, managers.UserRepo)
 
 	if cfg.DashboardAuthEnabled {
-		go func() {
-			router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo, managers.CronJobRepo, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
-			router.Serve()
-		}()
+		runServer(managers, cfg)
 	}
-	jm := NewJobManager(managers.EnqueuedJobRepo, managers.CronJobRepo, jobHandler, managers.LockMgr)
+	jm := NewJobManager(
+		managers.EnqueuedJobRepo,
+		managers.CronJobRepo,
+		jobHandler,
+		managers.LockMgr,
+		managers.MessageBroker,
+		cfg.UseQueueWriter,
+		cfg.RabbitMQConfig.Queue,
+	)
 
 	jobCtx, cancel := context.WithCancel(ctx)
 	jm.cancel = cancel
 
 	jm.wg.Add(2)
 
-	go func() {
-		defer jm.wg.Done()
-		go managers.EnqueueScheduler.Start(jobCtx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
-	}()
-
-	go func() {
-		defer jm.wg.Done()
-		go managers.CronJobManager.Start(jobCtx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize)
-	}()
+	startJobReaders(jobCtx, jm, managers, cfg)
 
 	return jm, nil
 }
 
+// runServer initializes and starts the web server for the dashboard interface in a separate goroutine.
+func runServer(managers *JobManagers, cfg config.GofireConfig) {
+	go func() {
+		router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo, managers.CronJobRepo, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
+		router.Serve()
+	}()
+}
+
+// getStorageConnections sets up storage backends (Postgres or Redis) based on the configuration.
+// Returns the initialized SQL DB, Redis client, and an error if the driver is unsupported.
+func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, error) {
+	var sqlDB *sql.DB
+	var redisClient *redis.Client
+
+	switch cfg.StorageDriver {
+	case config.Postgres:
+		sqlDB = setupPostgres(cfg.PostgresConfig.ConnectionUrl)
+		setPostgresConnectionPool(sqlDB)
+
+	case config.Redis:
+		redisClient = setupRedis(cfg.RedisConfig.Address, cfg.RedisConfig.Password, cfg.RedisConfig.DB)
+	default:
+		return nil, nil, fmt.Errorf("unsupported driver: %v", cfg.StorageDriver)
+	}
+	return sqlDB, redisClient, nil
+}
+
+// startJobReaders launches goroutines for processing enqueued and cron jobs.
+// Uses the JobManagerService wait group to track job reader lifecycle.
+func startJobReaders(ctx context.Context, jm *JobManagerService, managers *JobManagers, cfg config.GofireConfig) {
+	go func() {
+		defer jm.wg.Done()
+		go managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
+	}()
+
+	go func() {
+		defer jm.wg.Done()
+		go managers.CronJobManager.Start(ctx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize)
+	}()
+
+	if cfg.UseQueueWriter {
+		go managers.EnqueueScheduler.StartQueueAndStorageSyncWorker(ctx, cfg.RabbitMQConfig.Queue, cfg.UseQueueWriter)
+	}
+}
+
+// setPostgresConnectionPool configures the Postgres connection pool with recommended limits.
 func setPostgresConnectionPool(sqlDB *sql.DB) {
 	sqlDB.SetMaxOpenConns(80)
 	sqlDB.SetMaxIdleConns(10)
 }
 
+// createDashboardUser creates the default dashboard user if credentials are provided
+// and the user does not already exist in the repository.
 func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, repo repository.UserRepository) {
 	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
 		if user, err := repo.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
