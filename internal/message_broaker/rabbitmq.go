@@ -1,6 +1,7 @@
 package message_broaker
 
 import (
+	"context"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -86,7 +87,7 @@ func (r *RabbitMQ) Publish(queue string, message []byte) error {
 	)
 }
 
-func (r *RabbitMQ) Consume(queue string) (<-chan []byte, error) {
+func (r *RabbitMQ) Consume(ctx context.Context, queue string) (<-chan []byte, error) {
 	msgs, err := r.channel.Consume(
 		queue,
 		"",
@@ -100,13 +101,26 @@ func (r *RabbitMQ) Consume(queue string) (<-chan []byte, error) {
 		return nil, err
 	}
 
-	out := make(chan []byte)
+	out := make(chan []byte, 1000)
 
 	go func() {
-		for msg := range msgs {
-			out <- msg.Body
+		defer close(out)
+
+		for {
+			select {
+			case msg, ok := <-msgs:
+				if !ok {
+					return
+				}
+				select {
+				case out <- msg.Body:
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
 		}
-		close(out)
 	}()
 
 	return out, nil
