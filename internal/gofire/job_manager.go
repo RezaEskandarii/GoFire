@@ -2,9 +2,11 @@ package gofire
 
 import (
 	"context"
+	json2 "encoding/json"
 	"fmt"
 	"gofire/internal/constants"
 	"gofire/internal/lock"
+	"gofire/internal/message_broaker"
 	"gofire/internal/models"
 	"gofire/internal/parser"
 	"gofire/internal/repository"
@@ -19,9 +21,9 @@ import (
 // JobManager defines methods for scheduling and managing background tasks.
 type JobManager interface {
 
-	// Enqueue looks up a registered functions by name, then schedules it to run at the specified time by adding it to the queue.
-	// Accepts optional arguments to pass to the job when it runs.
-	// Returns the ID of the enqueued job or an error if the job name is not found or enqueueing fails.
+	// Enqueue either directly stores the job in the database (if disabled queue mode),
+	// or publishes it to a message broker like RabbitMQ if enabled.
+	// In queue mode, it returns 0 as job ID is unknown at this stage.
 	Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error)
 
 	// RemoveEnqueue deletes a queued job using its ID.
@@ -75,23 +77,48 @@ type JobManager interface {
 type JobManagerService struct {
 	EnqueuedJobRepository repository.EnqueuedJobRepository
 	CronJobRepository     repository.CronJobRepository
+	MBroker               message_broaker.MessageBroker
 	JobHandler            JobHandler
 	lockManager           lock.DistributedLockManager
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
+	writeJobsToQueue      bool
+	jobQueueName          string
 }
 
-func NewJobManager(enqueuedRepo repository.EnqueuedJobRepository, cronRepo repository.CronJobRepository, jobHandler JobHandler, lockManager lock.DistributedLockManager) *JobManagerService {
+func NewJobManager(enqueuedRepo repository.EnqueuedJobRepository, cronRepo repository.CronJobRepository, jobHandler JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManagerService {
 	return &JobManagerService{
 		EnqueuedJobRepository: enqueuedRepo,
 		lockManager:           lockManager,
 		CronJobRepository:     cronRepo,
 		JobHandler:            jobHandler,
+		MBroker:               messageBroker,
+		writeJobsToQueue:      writeJobsToQueue,
+		jobQueueName:          jobQueueName,
 	}
 }
 
 func (jm *JobManagerService) Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
-	return jm.EnqueuedJobRepository.Insert(ctx, jobName, enqueueAt, args...)
+	if !jm.writeJobsToQueue {
+		return jm.EnqueuedJobRepository.Insert(ctx, jobName, enqueueAt, args...)
+	}
+
+	job := models.Job{
+		Name:        jobName,
+		Args:        args,
+		ScheduledAt: enqueueAt,
+	}
+
+	payload, err := json2.Marshal(job)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	if err := jm.MBroker.Publish(jm.jobQueueName, payload); err != nil {
+		return 0, fmt.Errorf("failed to publish job to broker: %w", err)
+	}
+
+	return 0, nil
 }
 
 func (jm *JobManagerService) RemoveEnqueue(ctx context.Context, jobID int64) error {

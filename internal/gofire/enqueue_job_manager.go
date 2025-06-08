@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gofire/internal/constants"
 	"gofire/internal/lock"
+	"gofire/internal/message_broaker"
 	"gofire/internal/models"
 	"gofire/internal/repository"
 	"gofire/internal/state"
@@ -21,15 +22,17 @@ type enqueueJobsManager struct {
 	lock       lock.DistributedLockManager
 	jobHandler JobHandler
 	jobResults chan models.JobResult
+	mBroker    message_broaker.MessageBroker
 }
 
-func newEnqueueScheduler(repository repository.EnqueuedJobRepository, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) enqueueJobsManager {
+func newEnqueueScheduler(repository repository.EnqueuedJobRepository, lock lock.DistributedLockManager, jobHandler JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
 	scheduler := enqueueJobsManager{
 		repository: repository,
 		instance:   instance,
 		lock:       lock,
 		jobHandler: jobHandler,
 		jobResults: make(chan models.JobResult, 1000),
+		mBroker:    messageBroker,
 	}
 	go scheduler.MarkRetryFailedJobs(context.Background())
 	return scheduler
@@ -220,4 +223,69 @@ func (*enqueueJobsManager) errorToJobStatus(err error) state.JobStatus {
 		return state.StatusFailed
 	}
 	return state.StatusSucceeded
+}
+
+func (em *enqueueJobsManager) StartQueueAndStorageSyncWorker(ctx context.Context, queue string, useQueue bool) error {
+	if !useQueue {
+		return nil
+	}
+	const batchSize = 1000
+	log.Println("start to sync rabbit mq published jobs with database")
+
+	go func() {
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+
+		msgCh, err := em.mBroker.Consume(ctx, queue)
+		if err != nil {
+			log.Printf("failed to start consuming messages: %v", err)
+			return
+		}
+
+		var jobsBatch []models.Job
+
+		flushBatch := func() {
+			if len(jobsBatch) == 0 {
+				return
+			}
+			if err := em.repository.BulkInsert(ctx, jobsBatch); err != nil {
+				log.Printf("failed to insert batch jobs: %v", err)
+			} else {
+				log.Printf("inserted %d jobs in batch", len(jobsBatch))
+			}
+			jobsBatch = nil
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("batch job sync stopped due to context cancellation")
+				flushBatch()
+				return
+
+			case msg, ok := <-msgCh:
+				if !ok {
+					log.Println("message channel closed")
+					flushBatch()
+					return
+				}
+
+				var job models.Job
+				if err := json.Unmarshal(msg, &job); err != nil {
+					log.Printf("failed to unmarshal job: %v", err)
+					continue
+				}
+
+				jobsBatch = append(jobsBatch, job)
+				if len(jobsBatch) >= batchSize {
+					flushBatch()
+				}
+
+			case <-ticker.C:
+				flushBatch()
+			}
+		}
+	}()
+
+	return nil
 }
