@@ -197,7 +197,7 @@ WithRabbitMQConfig(config.RabbitMQConfig{
 
 The RabbitMQ configuration is optional but recommended for high-write scenarios. When enabled:
 - Jobs are temporarily stored in RabbitMQ when database write operations are heavy
-- Jobs are processed in bulk (default 1000 jobs per batch) to optimize database performance
+  Jobs are temporarily stored in RabbitMQ and later written to the database in bulk (e.g., 1000 per batch) to optimize database performance and reduce write overhead.
 - Helps prevent database overload during high-write periods
 
 ## Web Dashboard
