@@ -63,6 +63,15 @@ func main() {
         },
     })
 
+    cfg.RegisterHandler(config.MethodHandler{
+      MethodName: "DailyEmailNotificationJob",
+      Func: func(args ...any) error {
+        address := args[0].(string)
+        body := args[1].(string)
+        return sendEmail(address, body)
+      },
+    })
+   	
     // Initialize GoFire
     jobManager, err := gofire.SetUp(context.Background(), *cfg)
     if err != nil {
@@ -74,7 +83,7 @@ func main() {
     jobManager.Enqueue(ctx, "SendSMS", time.Now().Add(time.Minute*20), "123456789", "Hello!")
 	
     // Schedule a job
-    jobManager.Schedule(context.Background(), "DailyEmailNotificationJob", "30 8 * * *", "1234567890", "Hello!")
+    jobManager.Schedule(context.Background(), "DailyEmailNotificationJob", "30 8 * * *", "alice@example.com", "Hello!")
 }
 ```
 
@@ -171,8 +180,25 @@ cfg.WithAdminDashboardConfig(
     "username",     // Dashboard username
     "password",     // Dashboard password
     "secret-key",   // Secret key for authentication
+    "8080",         // Admin dashboard port
 )
 ```
+
+### RabbitMQ Configuration (Optional)
+```go
+cfg.UseRabbitMQueueWriter(true).
+WithRabbitMQConfig(config.RabbitMQConfig{
+    URL: "amqp://guest:guest@localhost:5672/",
+    Exchange:    "gofire_exchange",
+    Queue:       "gofire_jobs",
+    RoutingKey:  "jobs.enqueue",
+})
+```
+
+The RabbitMQ configuration is optional but recommended for high-write scenarios. When enabled:
+- Jobs are temporarily stored in RabbitMQ when database write operations are heavy
+- Jobs are processed in bulk (default 1000 jobs per batch) to optimize database performance
+- Helps prevent database overload during high-write periods
 
 ## Web Dashboard
 
