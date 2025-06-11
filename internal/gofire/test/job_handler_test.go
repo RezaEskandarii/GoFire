@@ -1,14 +1,15 @@
-package gofire
+package test
 
 import (
 	"errors"
+	"gofire/internal/gofire"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestJobHandler_Register(t *testing.T) {
-	jh := NewJobHandler()
+	jh := gofire.NewJobHandler()
 
 	err := jh.Register("job1", func(args ...any) error { return nil })
 	assert.NoError(t, err)
@@ -19,7 +20,7 @@ func TestJobHandler_Register(t *testing.T) {
 }
 
 func TestJobHandler_Exists(t *testing.T) {
-	jh := NewJobHandler()
+	jh := gofire.NewJobHandler()
 	assert.False(t, jh.Exists("job1"))
 
 	_ = jh.Register("job1", func(args ...any) error { return nil })
@@ -27,7 +28,7 @@ func TestJobHandler_Exists(t *testing.T) {
 }
 
 func TestJobHandler_Execute(t *testing.T) {
-	jh := NewJobHandler()
+	jh := gofire.NewJobHandler()
 
 	_ = jh.Register("job1", func(args ...any) error {
 
@@ -53,7 +54,7 @@ func TestJobHandler_Execute(t *testing.T) {
 }
 
 func TestJobHandler_List(t *testing.T) {
-	jh := NewJobHandler()
+	jh := gofire.NewJobHandler()
 
 	_ = jh.Register("job1", func(args ...any) error { return nil })
 	_ = jh.Register("job2", func(args ...any) error { return nil })
