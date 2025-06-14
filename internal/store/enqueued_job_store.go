@@ -1,4 +1,4 @@
-package repository
+package store
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type EnqueuedJobRepository interface {
+type EnqueuedJobStore interface {
 	// FindByID retrieves an enqueued job by its unique ID.
 	FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error)
 

@@ -5,8 +5,8 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"gofire/internal/repository"
 	"gofire/internal/state"
+	"gofire/internal/store"
 	"io/fs"
 	"log"
 	"net/http"
@@ -23,18 +23,18 @@ const (
 )
 
 type HttpRouteHandler struct {
-	enqueuedJobRepository repository.EnqueuedJobRepository
-	cronJobRepository     repository.CronJobRepository
-	userRepository        repository.UserRepository
+	enqueuedJobRepository store.EnqueuedJobStore
+	cronJobRepository     store.CronJobStore
+	userRepository        store.UserStore
 	SecretKey             string
 	UseAuth               bool
 	Port                  int
 }
 
 func NewRouteHandler(
-	repository repository.EnqueuedJobRepository,
-	userRepository repository.UserRepository,
-	cronJobRepository repository.CronJobRepository,
+	repository store.EnqueuedJobStore,
+	userRepository store.UserStore,
+	cronJobRepository store.CronJobStore,
 	secretKey string,
 	useAuth bool,
 	port int,

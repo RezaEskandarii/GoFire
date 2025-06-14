@@ -7,8 +7,8 @@ import (
 	"gofire/internal/lock"
 	"gofire/internal/models"
 	"gofire/internal/parser"
-	"gofire/internal/repository"
 	"gofire/internal/state"
+	"gofire/internal/store"
 	"log"
 	"sync"
 	"time"
@@ -17,14 +17,14 @@ import (
 )
 
 type cronJobManager struct {
-	repository repository.CronJobRepository
+	repository store.CronJobStore
 	lock       lock.DistributedLockManager
 	jobHandler JobHandler
 	instance   string
 	jobResults chan models.JobResult
 }
 
-func newCronJobManager(repo repository.CronJobRepository, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) cronJobManager {
+func newCronJobManager(repo store.CronJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) cronJobManager {
 	scheduler := cronJobManager{
 		repository: repo,
 		lock:       lock,

@@ -1,12 +1,12 @@
-package repository
+package store
 
 import (
 	"context"
 	"gofire/internal/models"
 )
 
-// UserRepository handles user-related database operations.
-type UserRepository interface {
+// UserStore handles user-related database operations.
+type UserStore interface {
 	// Create adds a new user and returns its ID.
 	Create(ctx context.Context, username, password string) (int64, error)
 

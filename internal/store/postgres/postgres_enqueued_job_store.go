@@ -13,17 +13,17 @@ import (
 	"time"
 )
 
-type PostgresEnqueuedJobRepository struct {
+type PostgresEnqueuedJobStore struct {
 	db *sql.DB
 }
 
-func NewPostgresEnqueuedJobRepository(db *sql.DB) *PostgresEnqueuedJobRepository {
-	return &PostgresEnqueuedJobRepository{
+func NewPostgresEnqueuedJobStore(db *sql.DB) *PostgresEnqueuedJobStore {
+	return &PostgresEnqueuedJobStore{
 		db: db,
 	}
 }
 
-func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
+func (r *PostgresEnqueuedJobStore) Insert(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
 
 	payloadJSON, err := json.Marshal(args)
 	if err != nil {
@@ -54,7 +54,7 @@ func (r *PostgresEnqueuedJobRepository) Insert(ctx context.Context, jobName stri
 
 }
 
-func (r *PostgresEnqueuedJobRepository) FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error) {
+func (r *PostgresEnqueuedJobStore) FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error) {
 	query := `
 		SELECT id,
 		       name,
@@ -81,7 +81,7 @@ func (r *PostgresEnqueuedJobRepository) FindByID(ctx context.Context, id int64) 
 	return job, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) RemoveByID(ctx context.Context, jobID int64) error {
+func (r *PostgresEnqueuedJobStore) RemoveByID(ctx context.Context, jobID int64) error {
 	query := `DELETE FROM gofire_schema.enqueued_jobs WHERE id = $1`
 
 	result, err := r.db.ExecContext(ctx, query, jobID)
@@ -100,7 +100,7 @@ func (r *PostgresEnqueuedJobRepository) RemoveByID(ctx context.Context, jobID in
 	return nil
 }
 
-func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
+func (r *PostgresEnqueuedJobStore) FetchDueJobs(
 	ctx context.Context,
 	page int,
 	pageSize int,
@@ -181,7 +181,7 @@ func (r *PostgresEnqueuedJobRepository) FetchDueJobs(
 	return result, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) MarkRetryFailedJobs(ctx context.Context) error {
+func (r *PostgresEnqueuedJobStore) MarkRetryFailedJobs(ctx context.Context) error {
 	query := `
 		UPDATE gofire_schema.enqueued_jobs
 		SET 
@@ -200,7 +200,7 @@ func (r *PostgresEnqueuedJobRepository) MarkRetryFailedJobs(ctx context.Context)
 	return err
 }
 
-func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
+func (r *PostgresEnqueuedJobStore) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
 
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.enqueued_jobs
@@ -217,7 +217,7 @@ func (r *PostgresEnqueuedJobRepository) LockJob(ctx context.Context, jobID int64
 	return affected > 0, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
+func (r *PostgresEnqueuedJobStore) MarkSuccess(ctx context.Context, jobID int64) error {
 	_, err := r.db.ExecContext(ctx, `
  		UPDATE gofire_schema.enqueued_jobs
 		SET status = 'succeeded',
@@ -228,7 +228,7 @@ func (r *PostgresEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID i
 	return err
 }
 
-func (r *PostgresEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string, attempts int, maxAttempts int) error {
+func (r *PostgresEnqueuedJobStore) MarkFailure(ctx context.Context, jobID int64, errMsg string, attempts int, maxAttempts int) error {
 	status := state.StatusFailed
 	if attempts >= constants.MaxRetryAttempt {
 		status = state.StatusDead
@@ -244,7 +244,7 @@ func (r *PostgresEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID i
 	return err
 }
 
-func (r *PostgresEnqueuedJobRepository) UnlockStaleJobs(ctx context.Context, timeout time.Duration) error {
+func (r *PostgresEnqueuedJobStore) UnlockStaleJobs(ctx context.Context, timeout time.Duration) error {
 	_, err := r.db.ExecContext(ctx, `
         UPDATE gofire_schema.enqueued_jobs
         SET status = $1, 
@@ -257,7 +257,7 @@ func (r *PostgresEnqueuedJobRepository) UnlockStaleJobs(ctx context.Context, tim
 	return err
 }
 
-func (r *PostgresEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, status state.JobStatus) (int, error) {
+func (r *PostgresEnqueuedJobStore) CountJobsByStatus(ctx context.Context, status state.JobStatus) (int, error) {
 	query := `
 		SELECT COUNT(*) 
 		FROM gofire_schema.enqueued_jobs
@@ -273,7 +273,7 @@ func (r *PostgresEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, s
 	return count, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+func (r *PostgresEnqueuedJobStore) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT status, COUNT(*) AS count
 		FROM gofire_schema.enqueued_jobs
@@ -303,7 +303,7 @@ func (r *PostgresEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.
 	return result, nil
 }
 
-func (r *PostgresEnqueuedJobRepository) BulkInsert(ctx context.Context, batch []models.Job) error {
+func (r *PostgresEnqueuedJobStore) BulkInsert(ctx context.Context, batch []models.Job) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -351,11 +351,11 @@ func (r *PostgresEnqueuedJobRepository) BulkInsert(ctx context.Context, batch []
 	return nil
 }
 
-func (r *PostgresEnqueuedJobRepository) Close() error {
+func (r *PostgresEnqueuedJobStore) Close() error {
 	return r.db.Close()
 }
 
-func (r *PostgresEnqueuedJobRepository) mapSqlRowsToJob(rows *sql.Rows) (*models.EnqueuedJob, error) {
+func (r *PostgresEnqueuedJobStore) mapSqlRowsToJob(rows *sql.Rows) (*models.EnqueuedJob, error) {
 	var job models.EnqueuedJob
 	if err := rows.Scan(
 		&job.ID,

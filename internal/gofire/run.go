@@ -8,7 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gofire/internal/db"
 	"gofire/internal/models/config"
-	"gofire/internal/repository"
+	"gofire/internal/store"
 	"gofire/web"
 	"log"
 )
@@ -16,13 +16,13 @@ import (
 // SetUp initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
 //
 // It dynamically sets up storage backends (PostgreSQL or Redis), registers job handlers,
-// initializes the repositories and distributed lock manager, and launches all necessary background services,
+// initializes the Storesitories and distributed lock manager, and launches all necessary background services,
 // including job enqueuing, cron evaluation, and optionally the admin dashboard.
 //
 // The function performs the following steps:
 //  1. Connects to the specified storage backend based on cfg.StorageDriver (Postgres or Redis).
 //  2. Registers all job handlers defined in cfg.Handlers.
-//  3. Instantiates repositories, schedulers, and locking mechanisms using createJobManagers.
+//  3. Instantiates Storesitories, schedulers, and locking mechanisms using createJobManagers.
 //  4. Runs schema and migration setup if PostgreSQL is used (protected by a distributed lock).
 //  5. Starts background workers for scheduled and recurring jobs.
 //  6. Launches a web dashboard for job monitoring and manual control (if enabled).
@@ -56,14 +56,14 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 		return nil, err
 	}
 
-	createDashboardUser(ctx, &cfg, managers.UserRepo)
+	createDashboardUser(ctx, &cfg, managers.UserStore)
 
 	if cfg.DashboardAuthEnabled {
 		runServer(managers, cfg)
 	}
 	jm := NewJobManager(
-		managers.EnqueuedJobRepo,
-		managers.CronJobRepo,
+		managers.EnqueuedJobStore,
+		managers.CronJobStore,
 		jobHandler,
 		managers.LockMgr,
 		managers.MessageBroker,
@@ -84,7 +84,7 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 // runServer initializes and starts the web server for the dashboard interface in a separate goroutine.
 func runServer(managers *JobManagers, cfg config.GofireConfig) {
 	go func() {
-		router := web.NewRouteHandler(managers.EnqueuedJobRepo, managers.UserRepo, managers.CronJobRepo, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
+		router := web.NewRouteHandler(managers.EnqueuedJobStore, managers.UserStore, managers.CronJobStore, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
 		router.Serve()
 	}()
 }
@@ -133,11 +133,11 @@ func setPostgresConnectionPool(sqlDB *sql.DB) {
 }
 
 // createDashboardUser creates the default dashboard user if credentials are provided
-// and the user does not already exist in the repository.
-func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, repo repository.UserRepository) {
+// and the user does not already exist in the store.
+func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, Store store.UserStore) {
 	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
-		if user, err := repo.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
-			repo.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword)
+		if user, err := Store.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
+			Store.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword)
 		} else {
 			log.Print(err)
 		}

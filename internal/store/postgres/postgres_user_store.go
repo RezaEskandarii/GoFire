@@ -5,20 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"gofire/internal/models"
-	"gofire/internal/repository"
+	"gofire/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type postgresUserRepository struct {
+type postgresUserStore struct {
 	db *sql.DB
 }
 
-// NewPostgresUserRepository creates a new UserRepository with a DB connection
-func NewPostgresUserRepository(db *sql.DB) repository.UserRepository {
-	return &postgresUserRepository{db: db}
+// NewPostgresUserStore creates a new UserStore with a DB connection
+func NewPostgresUserStore(db *sql.DB) store.UserStore {
+	return &postgresUserStore{db: db}
 }
 
-func (r *postgresUserRepository) Create(ctx context.Context, username, password string) (int64, error) {
+func (r *postgresUserStore) Create(ctx context.Context, username, password string) (int64, error) {
 	r.db.QueryRowContext(ctx, "DELETE FROM  gofire_schema.users WHERE username = $1", username)
 	var id int64
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -33,7 +33,7 @@ func (r *postgresUserRepository) Create(ctx context.Context, username, password 
 	return id, nil
 }
 
-func (r *postgresUserRepository) Find(ctx context.Context, username, password string) (*models.User, error) {
+func (r *postgresUserStore) Find(ctx context.Context, username, password string) (*models.User, error) {
 	query := `SELECT id, username, password FROM gofire_schema.users WHERE username = $1`
 	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.Username, &user.Password)
@@ -50,7 +50,7 @@ func (r *postgresUserRepository) Find(ctx context.Context, username, password st
 	user.Password = ""
 	return user, nil
 }
-func (r *postgresUserRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *postgresUserStore) FindByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `SELECT id, username, password FROM gofire_schema.users WHERE username = $1`
 	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.Username)
@@ -63,7 +63,7 @@ func (r *postgresUserRepository) FindByUsername(ctx context.Context, username st
 	return user, nil
 }
 
-func (r *postgresUserRepository) Delete(ctx context.Context, username string) error {
+func (r *postgresUserStore) Delete(ctx context.Context, username string) error {
 	query := `DELETE FROM gofire_schema.users WHERE username = $1`
 	result, err := r.db.ExecContext(ctx, query, username)
 	if err != nil {

@@ -1,4 +1,4 @@
-package repository
+package store
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// CronJobRepository defines the interface for managing Cron Jobs in DB.
-type CronJobRepository interface {
+// CronJobStore defines the interface for managing Cron Jobs in DB.
+type CronJobStore interface {
 	// AddOrUpdate inserts a new cron job or updates its scheduled time and arguments if it already exists.
 	// Returns the job's ID.
 	AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, expression string, args ...any) (int64, error)

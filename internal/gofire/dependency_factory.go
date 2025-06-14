@@ -5,14 +5,14 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gofire/internal/lock"
 	"gofire/internal/models/config"
-	"gofire/internal/repository"
-	"gofire/internal/repository/postgres"
+	"gofire/internal/store"
+	"gofire/internal/store/postgres"
 )
 
-func CreateEnqueuedJobRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.EnqueuedJobRepository {
+func CreateEnqueuedJobStore(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) store.EnqueuedJobStore {
 	switch driver {
 	case config.Postgres:
-		return postgres.NewPostgresEnqueuedJobRepository(db)
+		return postgres.NewPostgresEnqueuedJobStore(db)
 	case config.Redis:
 		panic("unsupported storage driver")
 	default:
@@ -20,10 +20,10 @@ func CreateEnqueuedJobRepository(driver config.StorageDriver, db *sql.DB, redisC
 	}
 }
 
-func CreateCronJobRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.CronJobRepository {
+func CreateCronJobStore(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) store.CronJobStore {
 	switch driver {
 	case config.Postgres:
-		return postgres.NewPostgresCronJobRepository(db)
+		return postgres.NewPostgresCronJobStore(db)
 	case config.Redis:
 		panic("unsupported storage driver")
 	default:
@@ -31,10 +31,10 @@ func CreateCronJobRepository(driver config.StorageDriver, db *sql.DB, redisClien
 	}
 }
 
-func CreateUserRepository(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) repository.UserRepository {
+func CreateUserStore(driver config.StorageDriver, db *sql.DB, redisClient *redis.Client) store.UserStore {
 	switch driver {
 	case config.Postgres:
-		return postgres.NewPostgresUserRepository(db)
+		return postgres.NewPostgresUserStore(db)
 	case config.Redis:
 		panic("unsupported storage driver")
 	default:

@@ -8,8 +8,8 @@ import (
 	"gofire/internal/lock"
 	"gofire/internal/message_broaker"
 	"gofire/internal/models"
-	"gofire/internal/repository"
 	"gofire/internal/state"
+	"gofire/internal/store"
 	"golang.org/x/sync/semaphore"
 	"log"
 	"sync"
@@ -17,7 +17,7 @@ import (
 )
 
 type enqueueJobsManager struct {
-	repository repository.EnqueuedJobRepository
+	repository store.EnqueuedJobStore
 	instance   string
 	lock       lock.DistributedLockManager
 	jobHandler JobHandler
@@ -25,7 +25,7 @@ type enqueueJobsManager struct {
 	mBroker    message_broaker.MessageBroker
 }
 
-func newEnqueueScheduler(repository repository.EnqueuedJobRepository, lock lock.DistributedLockManager, jobHandler JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
+func newEnqueueScheduler(repository store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
 	scheduler := enqueueJobsManager{
 		repository: repository,
 		instance:   instance,

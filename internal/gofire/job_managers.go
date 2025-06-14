@@ -7,13 +7,13 @@ import (
 	"gofire/internal/lock"
 	"gofire/internal/message_broaker"
 	"gofire/internal/models/config"
-	"gofire/internal/repository"
+	"gofire/internal/store"
 )
 
 type JobManagers struct {
-	EnqueuedJobRepo  repository.EnqueuedJobRepository
-	CronJobRepo      repository.CronJobRepository
-	UserRepo         repository.UserRepository
+	EnqueuedJobStore store.EnqueuedJobStore
+	CronJobStore     store.CronJobStore
+	UserStore        store.UserStore
 	LockMgr          lock.DistributedLockManager
 	EnqueueScheduler enqueueJobsManager
 	CronJobManager   cronJobManager
@@ -21,13 +21,13 @@ type JobManagers struct {
 }
 
 func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redis.Client, jobHandler JobHandler) (*JobManagers, error) {
-	enqueuedJobRepo := CreateEnqueuedJobRepository(cfg.StorageDriver, sqlDB, redisClient)
-	cronJobRepo := CreateCronJobRepository(cfg.StorageDriver, sqlDB, redisClient)
-	userRepo := CreateUserRepository(cfg.StorageDriver, sqlDB, redisClient)
+	enqueuedJobStore := CreateEnqueuedJobStore(cfg.StorageDriver, sqlDB, redisClient)
+	cronJobStore := CreateCronJobStore(cfg.StorageDriver, sqlDB, redisClient)
+	userStore := CreateUserStore(cfg.StorageDriver, sqlDB, redisClient)
 
 	lockMgr := CreateDistributedLockManager(cfg.StorageDriver, sqlDB, redisClient)
 
-	cronJobManager := newCronJobManager(cronJobRepo, lockMgr, jobHandler, cfg.Instance)
+	cronJobManager := newCronJobManager(cronJobStore, lockMgr, jobHandler, cfg.Instance)
 
 	rabbitCfg := cfg.RabbitMQConfig
 
@@ -40,11 +40,11 @@ func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redi
 		messageBroker = mBroker
 	}
 
-	enqueueScheduler := newEnqueueScheduler(enqueuedJobRepo, lockMgr, jobHandler, messageBroker, cfg.Instance)
+	enqueueScheduler := newEnqueueScheduler(enqueuedJobStore, lockMgr, jobHandler, messageBroker, cfg.Instance)
 	return &JobManagers{
-		EnqueuedJobRepo:  enqueuedJobRepo,
-		CronJobRepo:      cronJobRepo,
-		UserRepo:         userRepo,
+		EnqueuedJobStore: enqueuedJobStore,
+		CronJobStore:     cronJobStore,
+		UserStore:        userStore,
 		LockMgr:          lockMgr,
 		EnqueueScheduler: enqueueScheduler,
 		CronJobManager:   cronJobManager,

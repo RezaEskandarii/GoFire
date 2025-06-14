@@ -12,15 +12,15 @@ import (
 	"time"
 )
 
-type PostgresCronJobRepository struct {
+type PostgresCronJobStore struct {
 	db *sql.DB
 }
 
-func NewPostgresCronJobRepository(db *sql.DB) *PostgresCronJobRepository {
-	return &PostgresCronJobRepository{db: db}
+func NewPostgresCronJobStore(db *sql.DB) *PostgresCronJobStore {
+	return &PostgresCronJobStore{db: db}
 }
 
-func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, expression string, args ...any) (int64, error) {
+func (r *PostgresCronJobStore) AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, expression string, args ...any) (int64, error) {
 
 	query := `
 		INSERT INTO gofire_schema.cron_jobs (name, next_run_at, payload,expression,created_at,updated_at,status)
@@ -48,7 +48,7 @@ func (r *PostgresCronJobRepository) AddOrUpdate(ctx context.Context, jobName str
 	return jobID, nil
 }
 
-func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error) {
+func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error) {
 	if page < 1 {
 		page = 1
 	}
@@ -129,7 +129,7 @@ func (r *PostgresCronJobRepository) FetchDueCronJobs(ctx context.Context, page i
 	return result, nil
 }
 
-func (r *PostgresCronJobRepository) GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
+func (r *PostgresCronJobStore) GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
 	if page < 1 {
 		page = 1
 	}
@@ -199,7 +199,7 @@ func (r *PostgresCronJobRepository) GetAll(ctx context.Context, page int, pageSi
 
 	return result, nil
 }
-func (r *PostgresCronJobRepository) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+func (r *PostgresCronJobStore) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT status, COUNT(*) AS count
 		FROM gofire_schema.cron_jobs
@@ -229,7 +229,7 @@ func (r *PostgresCronJobRepository) CountAllJobsGroupedByStatus(ctx context.Cont
 	return result, nil
 }
 
-func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error {
+func (r *PostgresCronJobStore) UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET last_run_at = $1, next_run_at = $2
@@ -239,7 +239,7 @@ func (r *PostgresCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID
 	return err
 }
 
-func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
+func (r *PostgresCronJobStore) MarkSuccess(ctx context.Context, jobID int64) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET status = $1,
@@ -252,7 +252,7 @@ func (r *PostgresCronJobRepository) MarkSuccess(ctx context.Context, jobID int64
 	return err
 }
 
-func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string) error {
+func (r *PostgresCronJobStore) MarkFailure(ctx context.Context, jobID int64, errMsg string) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET status = 'failed', last_error = $1
@@ -262,7 +262,7 @@ func (r *PostgresCronJobRepository) MarkFailure(ctx context.Context, jobID int64
 	return err
 }
 
-func (r *PostgresCronJobRepository) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
+func (r *PostgresCronJobStore) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
 
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE gofire_schema.cron_jobs
@@ -278,7 +278,7 @@ func (r *PostgresCronJobRepository) LockJob(ctx context.Context, jobID int64, lo
 	return affected > 0, nil
 }
 
-func (r *PostgresCronJobRepository) UnLockJob(ctx context.Context, jobID int64) (bool, error) {
+func (r *PostgresCronJobStore) UnLockJob(ctx context.Context, jobID int64) (bool, error) {
 	res, err := r.db.ExecContext(ctx, `
         UPDATE gofire_schema.cron_jobs
         SET locked_at = NULL,
@@ -292,15 +292,15 @@ func (r *PostgresCronJobRepository) UnLockJob(ctx context.Context, jobID int64) 
 	return affected > 0, nil
 }
 
-func (r *PostgresCronJobRepository) Activate(ctx context.Context, jobID int64) error {
+func (r *PostgresCronJobStore) Activate(ctx context.Context, jobID int64) error {
 	return r.executeChangeActivateQuery(ctx, jobID, true)
 }
 
-func (r *PostgresCronJobRepository) DeActivate(ctx context.Context, jobID int64) error {
+func (r *PostgresCronJobStore) DeActivate(ctx context.Context, jobID int64) error {
 	return r.executeChangeActivateQuery(ctx, jobID, false)
 }
 
-func (r *PostgresCronJobRepository) executeChangeActivateQuery(ctx context.Context, jobID int64, isActive bool) error {
+func (r *PostgresCronJobStore) executeChangeActivateQuery(ctx context.Context, jobID int64, isActive bool) error {
 	query := `
 	UPDATE gofire_schema.cron_jobs
 	SET is_active = $1
@@ -310,6 +310,6 @@ func (r *PostgresCronJobRepository) executeChangeActivateQuery(ctx context.Conte
 	return err
 }
 
-func (r *PostgresCronJobRepository) Close() error {
+func (r *PostgresCronJobStore) Close() error {
 	return r.db.Close()
 }

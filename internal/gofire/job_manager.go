@@ -9,7 +9,7 @@ import (
 	"gofire/internal/message_broaker"
 	"gofire/internal/models"
 	"gofire/internal/parser"
-	"gofire/internal/repository"
+	"gofire/internal/store"
 	"log"
 	"os"
 	"os/signal"
@@ -68,15 +68,15 @@ type JobManager interface {
 
 	// ShutDown listens for system interrupt or termination signals (SIGINT, SIGTERM)
 	// and performs a graceful shutdown of the JobManagerService by closing
-	// the CronJobRepository and EnqueuedJobRepository resources.
+	// the CronJobStore and EnqueuedJobStore resources.
 	// It blocks execution until one of the specified signals is received,
 	// then releases resources and logs shutdown progress.
 	ShutDown()
 }
 
 type JobManagerService struct {
-	EnqueuedJobRepository repository.EnqueuedJobRepository
-	CronJobRepository     repository.CronJobRepository
+	EnqueuedJobRepository store.EnqueuedJobStore
+	CronJobRepository     store.CronJobStore
 	MBroker               message_broaker.MessageBroker
 	JobHandler            JobHandler
 	lockManager           lock.DistributedLockManager
@@ -86,7 +86,7 @@ type JobManagerService struct {
 	jobQueueName          string
 }
 
-func NewJobManager(enqueuedRepo repository.EnqueuedJobRepository, cronRepo repository.CronJobRepository, jobHandler JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManagerService {
+func NewJobManager(enqueuedRepo store.EnqueuedJobStore, cronRepo store.CronJobStore, jobHandler JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManagerService {
 	return &JobManagerService{
 		EnqueuedJobRepository: enqueuedRepo,
 		lockManager:           lockManager,
