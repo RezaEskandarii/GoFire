@@ -42,7 +42,7 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
 
 	jobHandler := NewJobHandler()
 	for _, handler := range cfg.Handlers {
-		if err := jobHandler.Register(handler.MethodName, handler.Func); err != nil {
+		if err := jobHandler.Register(handler.JobName, handler.Func); err != nil {
 			return nil, err
 		}
 	}

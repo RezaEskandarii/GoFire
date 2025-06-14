@@ -36,8 +36,8 @@ type GofireConfig struct {
 
 // MethodHandler holds the name and actual function of a job handler.
 type MethodHandler struct {
-	MethodName string                  // Name used to identify the handler (e.g., "SendEmail")
-	Func       func(args ...any) error // The function to execute for this handler
+	JobName string                  // Name used to identify the handler (e.g., "SendEmail")
+	Func    func(args ...any) error // The function to execute for this handler
 }
 
 // PostgresConfig holds PostgreSQL connection settings.

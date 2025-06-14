@@ -31,7 +31,7 @@ func BenchmarkEnqueueParallel(b *testing.B) {
 	for i := 0; i < 20; i++ {
 		jobName := fmt.Sprintf("job-%d", i)
 		cfg.RegisterHandler(config.MethodHandler{
-			MethodName: jobName,
+			JobName: jobName,
 			Func: func(args ...any) error {
 				to := args[0].(string)
 				message := args[1].(string)
