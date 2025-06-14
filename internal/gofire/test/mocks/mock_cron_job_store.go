@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-type MockCronJobRepository struct {
+type MockCronJobStore struct {
 	mu     sync.Mutex
 	jobs   map[int64]*models.CronJob
 	nextID int64
 }
 
-func NewMockCronJobRepository() *MockCronJobRepository {
-	return &MockCronJobRepository{
+func NewMockCronJobStore() *MockCronJobStore {
+	return &MockCronJobStore{
 		jobs: make(map[int64]*models.CronJob),
 	}
 }
 
-func (m *MockCronJobRepository) AddOrUpdate(ctx context.Context, jobName string, nextRunAt time.Time, expression string, args ...any) (int64, error) {
+func (m *MockCronJobStore) AddOrUpdate(ctx context.Context, jobName string, nextRunAt time.Time, expression string, args ...any) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -46,7 +46,7 @@ func (m *MockCronJobRepository) AddOrUpdate(ctx context.Context, jobName string,
 	return job.ID, nil
 }
 
-func (m *MockCronJobRepository) FetchDueCronJobs(ctx context.Context, page, pageSize int) (*models.PaginationResult[models.CronJob], error) {
+func (m *MockCronJobStore) FetchDueCronJobs(ctx context.Context, page, pageSize int) (*models.PaginationResult[models.CronJob], error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -75,7 +75,7 @@ func (m *MockCronJobRepository) FetchDueCronJobs(ctx context.Context, page, page
 	}, nil
 }
 
-func (m *MockCronJobRepository) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
+func (m *MockCronJobStore) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -89,7 +89,7 @@ func (m *MockCronJobRepository) LockJob(ctx context.Context, jobID int64, locked
 	return true, nil
 }
 
-func (m *MockCronJobRepository) UnLockJob(ctx context.Context, jobID int64) (bool, error) {
+func (m *MockCronJobStore) UnLockJob(ctx context.Context, jobID int64) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -102,7 +102,7 @@ func (m *MockCronJobRepository) UnLockJob(ctx context.Context, jobID int64) (boo
 	return true, nil
 }
 
-func (m *MockCronJobRepository) GetAll(ctx context.Context, page, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
+func (m *MockCronJobStore) GetAll(ctx context.Context, page, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -129,7 +129,7 @@ func (m *MockCronJobRepository) GetAll(ctx context.Context, page, pageSize int, 
 	}, nil
 }
 
-func (m *MockCronJobRepository) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+func (m *MockCronJobStore) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -140,7 +140,7 @@ func (m *MockCronJobRepository) CountAllJobsGroupedByStatus(ctx context.Context)
 	return counts, nil
 }
 
-func (m *MockCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error {
+func (m *MockCronJobStore) UpdateJobRunTimes(ctx context.Context, jobID int64, lastRunAt, nextRunAt time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -153,7 +153,7 @@ func (m *MockCronJobRepository) UpdateJobRunTimes(ctx context.Context, jobID int
 	return nil
 }
 
-func (m *MockCronJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
+func (m *MockCronJobStore) MarkSuccess(ctx context.Context, jobID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -167,7 +167,7 @@ func (m *MockCronJobRepository) MarkSuccess(ctx context.Context, jobID int64) er
 	return nil
 }
 
-func (m *MockCronJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string) error {
+func (m *MockCronJobStore) MarkFailure(ctx context.Context, jobID int64, errMsg string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -185,7 +185,7 @@ func (m *MockCronJobRepository) MarkFailure(ctx context.Context, jobID int64, er
 	return nil
 }
 
-func (m *MockCronJobRepository) Activate(ctx context.Context, jobID int64) error {
+func (m *MockCronJobStore) Activate(ctx context.Context, jobID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -197,7 +197,7 @@ func (m *MockCronJobRepository) Activate(ctx context.Context, jobID int64) error
 	return nil
 }
 
-func (m *MockCronJobRepository) DeActivate(ctx context.Context, jobID int64) error {
+func (m *MockCronJobStore) DeActivate(ctx context.Context, jobID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -209,6 +209,6 @@ func (m *MockCronJobRepository) DeActivate(ctx context.Context, jobID int64) err
 	return nil
 }
 
-func (m *MockCronJobRepository) Close() error {
+func (m *MockCronJobStore) Close() error {
 	return nil
 }

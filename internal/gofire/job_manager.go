@@ -75,32 +75,32 @@ type JobManager interface {
 }
 
 type JobManagerService struct {
-	EnqueuedJobRepository store.EnqueuedJobStore
-	CronJobRepository     store.CronJobStore
-	MBroker               message_broaker.MessageBroker
-	JobHandler            JobHandler
-	lockManager           lock.DistributedLockManager
-	cancel                context.CancelFunc
-	wg                    sync.WaitGroup
-	writeJobsToQueue      bool
-	jobQueueName          string
+	EnqueuedJobStore store.EnqueuedJobStore
+	CronJobStore     store.CronJobStore
+	MBroker          message_broaker.MessageBroker
+	JobHandler       JobHandler
+	lockManager      lock.DistributedLockManager
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
+	writeJobsToQueue bool
+	jobQueueName     string
 }
 
-func NewJobManager(enqueuedRepo store.EnqueuedJobStore, cronRepo store.CronJobStore, jobHandler JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManagerService {
+func NewJobManager(enqueuedStore store.EnqueuedJobStore, cronStore store.CronJobStore, jobHandler JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManagerService {
 	return &JobManagerService{
-		EnqueuedJobRepository: enqueuedRepo,
-		lockManager:           lockManager,
-		CronJobRepository:     cronRepo,
-		JobHandler:            jobHandler,
-		MBroker:               messageBroker,
-		writeJobsToQueue:      writeJobsToQueue,
-		jobQueueName:          jobQueueName,
+		EnqueuedJobStore: enqueuedStore,
+		lockManager:      lockManager,
+		CronJobStore:     cronStore,
+		JobHandler:       jobHandler,
+		MBroker:          messageBroker,
+		writeJobsToQueue: writeJobsToQueue,
+		jobQueueName:     jobQueueName,
 	}
 }
 
 func (jm *JobManagerService) Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
 	if !jm.writeJobsToQueue {
-		return jm.EnqueuedJobRepository.Insert(ctx, jobName, enqueueAt, args...)
+		return jm.EnqueuedJobStore.Insert(ctx, jobName, enqueueAt, args...)
 	}
 
 	job := models.Job{
@@ -122,11 +122,11 @@ func (jm *JobManagerService) Enqueue(ctx context.Context, jobName string, enqueu
 }
 
 func (jm *JobManagerService) RemoveEnqueue(ctx context.Context, jobID int64) error {
-	return jm.EnqueuedJobRepository.RemoveByID(ctx, jobID)
+	return jm.EnqueuedJobStore.RemoveByID(ctx, jobID)
 }
 
 func (jm *JobManagerService) FindEnqueue(ctx context.Context, jobID int64) (*models.EnqueuedJob, error) {
-	return jm.EnqueuedJobRepository.FindByID(ctx, jobID)
+	return jm.EnqueuedJobStore.FindByID(ctx, jobID)
 }
 
 func (jm *JobManagerService) Schedule(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {
@@ -182,11 +182,11 @@ func (jm *JobManagerService) ScheduleEveryYear(ctx context.Context, jobName stri
 }
 
 func (jm *JobManagerService) ActivateSchedule(ctx context.Context, jobID int64) {
-	jm.CronJobRepository.Activate(ctx, jobID)
+	jm.CronJobStore.Activate(ctx, jobID)
 }
 
 func (jm *JobManagerService) DeActivateSchedule(ctx context.Context, jobID int64) {
-	jm.CronJobRepository.DeActivate(ctx, jobID)
+	jm.CronJobStore.DeActivate(ctx, jobID)
 }
 
 func (jm *JobManagerService) ScheduleInvokeWithTimer(ctx context.Context, jobName string, expression string, args ...any) error {
@@ -227,11 +227,11 @@ func (jm *JobManagerService) ShutDown() {
 	// Wait for all background job processors to finish
 	jm.wg.Wait()
 
-	if err := jm.CronJobRepository.Close(); err != nil {
+	if err := jm.CronJobStore.Close(); err != nil {
 		log.Println(err.Error())
 	}
 
-	if err := jm.EnqueuedJobRepository.Close(); err != nil {
+	if err := jm.EnqueuedJobStore.Close(); err != nil {
 		log.Println(err.Error())
 	}
 
@@ -272,5 +272,5 @@ func (jm *JobManagerService) runWithTimerInternal(ctx context.Context, expressio
 
 func (jm *JobManagerService) addOrUpdate(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {
 	scheduledAt := parser.CalculateNextRun(expression, time.Now())
-	return jm.CronJobRepository.AddOrUpdate(ctx, jobName, scheduledAt, expression, args...)
+	return jm.CronJobStore.AddOrUpdate(ctx, jobName, scheduledAt, expression, args...)
 }

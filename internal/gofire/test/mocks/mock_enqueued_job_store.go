@@ -1,4 +1,4 @@
-// mocks/mock_enqueued_job_repository.go
+// mocks/mock_enqueued_job_store.go
 package mocks
 
 import (
@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-type MockEnqueuedJobRepository struct {
+type MockEnqueuedJobStore struct {
 	mu    sync.Mutex
 	jobs  map[int64]*models.EnqueuedJob
 	idSeq int64
 }
 
-func NewMockEnqueuedJobRepository() *MockEnqueuedJobRepository {
-	return &MockEnqueuedJobRepository{
+func NewMockEnqueuedJobStore() *MockEnqueuedJobStore {
+	return &MockEnqueuedJobStore{
 		jobs: make(map[int64]*models.EnqueuedJob),
 	}
 }
 
-func (m *MockEnqueuedJobRepository) FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error) {
+func (m *MockEnqueuedJobStore) FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -33,7 +33,7 @@ func (m *MockEnqueuedJobRepository) FindByID(ctx context.Context, id int64) (*mo
 	return job, nil
 }
 
-func (m *MockEnqueuedJobRepository) RemoveByID(ctx context.Context, jobID int64) error {
+func (m *MockEnqueuedJobStore) RemoveByID(ctx context.Context, jobID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -41,7 +41,7 @@ func (m *MockEnqueuedJobRepository) RemoveByID(ctx context.Context, jobID int64)
 	return nil
 }
 
-func (m *MockEnqueuedJobRepository) Insert(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
+func (m *MockEnqueuedJobStore) Insert(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -56,7 +56,7 @@ func (m *MockEnqueuedJobRepository) Insert(ctx context.Context, jobName string, 
 	return job.ID, nil
 }
 
-func (m *MockEnqueuedJobRepository) FetchDueJobs(ctx context.Context, page, pageSize int, statuses []state.JobStatus, scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error) {
+func (m *MockEnqueuedJobStore) FetchDueJobs(ctx context.Context, page, pageSize int, statuses []state.JobStatus, scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (m *MockEnqueuedJobRepository) FetchDueJobs(ctx context.Context, page, page
 	}, nil
 }
 
-func (m *MockEnqueuedJobRepository) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
+func (m *MockEnqueuedJobStore) LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -103,7 +103,7 @@ func (m *MockEnqueuedJobRepository) LockJob(ctx context.Context, jobID int64, lo
 	return true, nil
 }
 
-func (m *MockEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int64) error {
+func (m *MockEnqueuedJobStore) MarkSuccess(ctx context.Context, jobID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := time.Now()
@@ -116,7 +116,7 @@ func (m *MockEnqueuedJobRepository) MarkSuccess(ctx context.Context, jobID int64
 	return nil
 }
 
-func (m *MockEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int64, errMsg string, attempts int, maxAttempts int) error {
+func (m *MockEnqueuedJobStore) MarkFailure(ctx context.Context, jobID int64, errMsg string, attempts int, maxAttempts int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -135,7 +135,7 @@ func (m *MockEnqueuedJobRepository) MarkFailure(ctx context.Context, jobID int64
 	return nil
 }
 
-func (m *MockEnqueuedJobRepository) UnlockStaleJobs(ctx context.Context, timeout time.Duration) error {
+func (m *MockEnqueuedJobStore) UnlockStaleJobs(ctx context.Context, timeout time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -150,7 +150,7 @@ func (m *MockEnqueuedJobRepository) UnlockStaleJobs(ctx context.Context, timeout
 	return nil
 }
 
-func (m *MockEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, status state.JobStatus) (int, error) {
+func (m *MockEnqueuedJobStore) CountJobsByStatus(ctx context.Context, status state.JobStatus) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -163,7 +163,7 @@ func (m *MockEnqueuedJobRepository) CountJobsByStatus(ctx context.Context, statu
 	return count, nil
 }
 
-func (m *MockEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
+func (m *MockEnqueuedJobStore) CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -174,7 +174,7 @@ func (m *MockEnqueuedJobRepository) CountAllJobsGroupedByStatus(ctx context.Cont
 	return counts, nil
 }
 
-func (m *MockEnqueuedJobRepository) MarkRetryFailedJobs(ctx context.Context) error {
+func (m *MockEnqueuedJobStore) MarkRetryFailedJobs(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -186,7 +186,7 @@ func (m *MockEnqueuedJobRepository) MarkRetryFailedJobs(ctx context.Context) err
 	return nil
 }
 
-func (m *MockEnqueuedJobRepository) BulkInsert(ctx context.Context, batch []models.Job) error {
+func (m *MockEnqueuedJobStore) BulkInsert(ctx context.Context, batch []models.Job) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -203,6 +203,6 @@ func (m *MockEnqueuedJobRepository) BulkInsert(ctx context.Context, batch []mode
 	return nil
 }
 
-func (m *MockEnqueuedJobRepository) Close() error {
+func (m *MockEnqueuedJobStore) Close() error {
 	return nil
 }

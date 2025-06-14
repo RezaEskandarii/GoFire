@@ -17,16 +17,16 @@ import (
 )
 
 type cronJobManager struct {
-	repository store.CronJobStore
+	jobStore   store.CronJobStore
 	lock       lock.DistributedLockManager
 	jobHandler JobHandler
 	instance   string
 	jobResults chan models.JobResult
 }
 
-func newCronJobManager(repo store.CronJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) cronJobManager {
+func newCronJobManager(cronJobStore store.CronJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) cronJobManager {
 	scheduler := cronJobManager{
-		repository: repo,
+		jobStore:   cronJobStore,
 		lock:       lock,
 		jobHandler: jobHandler,
 		instance:   instance,
@@ -61,14 +61,14 @@ func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.We
 	log.Println("start to process cron jobs")
 	page := 1
 	for {
-		result, err := cm.repository.FetchDueCronJobs(ctx, page, batchSize)
+		result, err := cm.jobStore.FetchDueCronJobs(ctx, page, batchSize)
 		if err != nil {
 			log.Printf("cronJobManager: failed to fetch jobs: %v", err)
 			return
 		}
 
 		for _, job := range result.Items {
-			ok, err := cm.repository.LockJob(ctx, job.ID, cm.instance)
+			ok, err := cm.jobStore.LockJob(ctx, job.ID, cm.instance)
 			if err != nil || !ok {
 				log.Println(err)
 				continue
@@ -142,17 +142,17 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 				switch res.Status {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
-						cm.repository.MarkSuccess(ctx, res.JobID)
-						cm.repository.UnLockJob(ctx, res.JobID)
+						cm.jobStore.MarkSuccess(ctx, res.JobID)
+						cm.jobStore.UnLockJob(ctx, res.JobID)
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
-						cm.repository.MarkFailure(ctx, res.JobID, res.Err.Error())
+						cm.jobStore.MarkFailure(ctx, res.JobID, res.Err.Error())
 					}
 				default:
 					log.Printf("cronJobManager: unknown status: %sm", res.Status)
 				}
-				cm.repository.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun)
+				cm.jobStore.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun)
 			}
 		}
 	}()

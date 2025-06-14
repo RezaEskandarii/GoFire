@@ -23,29 +23,29 @@ const (
 )
 
 type HttpRouteHandler struct {
-	enqueuedJobRepository store.EnqueuedJobStore
-	cronJobRepository     store.CronJobStore
-	userRepository        store.UserStore
-	SecretKey             string
-	UseAuth               bool
-	Port                  int
+	enqueuedJobStore store.EnqueuedJobStore
+	cronJobStore     store.CronJobStore
+	userStore        store.UserStore
+	SecretKey        string
+	UseAuth          bool
+	Port             int
 }
 
 func NewRouteHandler(
-	repository store.EnqueuedJobStore,
-	userRepository store.UserStore,
-	cronJobRepository store.CronJobStore,
+	enqueueStore store.EnqueuedJobStore,
+	userStore store.UserStore,
+	cronJobStore store.CronJobStore,
 	secretKey string,
 	useAuth bool,
 	port int,
 ) HttpRouteHandler {
 	return HttpRouteHandler{
-		enqueuedJobRepository: repository,
-		cronJobRepository:     cronJobRepository,
-		userRepository:        userRepository,
-		SecretKey:             secretKey,
-		UseAuth:               useAuth,
-		Port:                  port,
+		enqueuedJobStore: enqueueStore,
+		cronJobStore:     cronJobStore,
+		userStore:        userStore,
+		SecretKey:        secretKey,
+		UseAuth:          useAuth,
+		Port:             port,
 	}
 }
 
@@ -82,14 +82,14 @@ func (handler *HttpRouteHandler) handleEnqueued() {
 			statuses = append(statuses, status)
 		}
 
-		jobs, err := handler.enqueuedJobRepository.FetchDueJobs(ctx, pageNumber, PageSize, statuses, nil)
+		jobs, err := handler.enqueuedJobStore.FetchDueJobs(ctx, pageNumber, PageSize, statuses, nil)
 		if err != nil {
 			log.Printf("failed to fetch jobs: %v", err)
 			http.Error(w, "Failed to fetch jobs", http.StatusInternalServerError)
 			return
 		}
 
-		allJobsCount, _ := handler.enqueuedJobRepository.CountAllJobsGroupedByStatus(ctx)
+		allJobsCount, _ := handler.enqueuedJobStore.CountAllJobsGroupedByStatus(ctx)
 
 		data := NewPaginatedDataMap(*jobs).
 			Add("Statuses", state.AllStatuses).
@@ -115,14 +115,14 @@ func (handler *HttpRouteHandler) handleCharts() {
 
 		loadCharts := request.URL.Query().Get("loadCharts")
 		if loadCharts != "" {
-			enqueuedJobs, err := handler.enqueuedJobRepository.CountAllJobsGroupedByStatus(request.Context())
+			enqueuedJobs, err := handler.enqueuedJobStore.CountAllJobsGroupedByStatus(request.Context())
 			if err != nil {
 				http.Error(writer, "Failed to get enqueued jobs", http.StatusInternalServerError)
 				log.Println("Error in enqueuedJobs:", err)
 				return
 			}
 
-			cronJobs, err := handler.cronJobRepository.CountAllJobsGroupedByStatus(request.Context())
+			cronJobs, err := handler.cronJobStore.CountAllJobsGroupedByStatus(request.Context())
 			if err != nil {
 				http.Error(writer, "Failed to get cron jobs", http.StatusInternalServerError)
 				log.Println("Error in cronJobs:", err)
@@ -155,14 +155,14 @@ func (handler *HttpRouteHandler) handleCronJobs() {
 		statusParam := strings.TrimSpace(r.URL.Query().Get("status"))
 		status := state.JobStatus(statusParam)
 
-		jobs, err := handler.cronJobRepository.GetAll(ctx, pageNumber, PageSize, status)
+		jobs, err := handler.cronJobStore.GetAll(ctx, pageNumber, PageSize, status)
 		if err != nil {
 			log.Printf("failed to fetch jobs: %v", err)
 			http.Error(w, "Failed to fetch jobs", http.StatusInternalServerError)
 			return
 		}
 
-		allJobsCount, _ := handler.cronJobRepository.CountAllJobsGroupedByStatus(ctx)
+		allJobsCount, _ := handler.cronJobStore.CountAllJobsGroupedByStatus(ctx)
 
 		data := NewPaginatedDataMap(*jobs).
 			Add("Statuses", state.AllStatuses).
@@ -206,11 +206,11 @@ func (handler *HttpRouteHandler) handleChangeCronJobStatus() {
 		message := ""
 		switch action {
 		case "activate":
-			handler.cronJobRepository.Activate(r.Context(), id)
+			handler.cronJobStore.Activate(r.Context(), id)
 			message = "Job activated successfully!"
 			break
 		case "deactivate":
-			handler.cronJobRepository.DeActivate(r.Context(), id)
+			handler.cronJobStore.DeActivate(r.Context(), id)
 			message = "Job deactivated successfully!"
 			break
 		default:
@@ -242,7 +242,7 @@ func (handler *HttpRouteHandler) handleDashboardAction(ctx context.Context, w ht
 		if err != nil {
 			return fmt.Errorf("invalid job id")
 		}
-		if err := handler.enqueuedJobRepository.RemoveByID(ctx, jobID); err != nil {
+		if err := handler.enqueuedJobStore.RemoveByID(ctx, jobID); err != nil {
 			return fmt.Errorf("failed to remove job: %w", err)
 		}
 	default:
@@ -270,7 +270,7 @@ func (handler *HttpRouteHandler) handleLogin() {
 			username := r.FormValue("username")
 			password := r.FormValue("password")
 
-			user, err := handler.userRepository.Find(r.Context(), username, password)
+			user, err := handler.userStore.Find(r.Context(), username, password)
 			if err != nil {
 				log.Println(err.Error())
 				http.SetCookie(w, &http.Cookie{

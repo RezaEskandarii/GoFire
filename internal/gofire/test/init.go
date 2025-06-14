@@ -55,15 +55,15 @@ func init() {
 		panic(fmt.Sprintf("failed to set up job manager: %v", err))
 	}
 
-	mockEnqueuedRepo := mocks.NewMockEnqueuedJobRepository()
-	cronJobRepo := mocks.NewMockCronJobRepository()
+	mockEnqueuedStore := mocks.NewMockEnqueuedJobStore()
+	cronJobStore := mocks.NewMockCronJobStore()
 
 	lockMgr := mocks.NewMockDistributedLockManager()
 	messageBroker := mocks.NewMockMessageBroker(1000)
 
 	testJobManager = gofire.NewJobManager(
-		mockEnqueuedRepo,
-		cronJobRepo,
+		mockEnqueuedStore,
+		cronJobStore,
 		createTestJobHandler(),
 		lockMgr,
 		messageBroker,

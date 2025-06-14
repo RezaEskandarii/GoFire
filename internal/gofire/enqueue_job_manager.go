@@ -17,7 +17,7 @@ import (
 )
 
 type enqueueJobsManager struct {
-	repository store.EnqueuedJobStore
+	store      store.EnqueuedJobStore
 	instance   string
 	lock       lock.DistributedLockManager
 	jobHandler JobHandler
@@ -25,9 +25,9 @@ type enqueueJobsManager struct {
 	mBroker    message_broaker.MessageBroker
 }
 
-func newEnqueueScheduler(repository store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
+func newEnqueueScheduler(jobStore store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
 	scheduler := enqueueJobsManager{
-		repository: repository,
+		store:      jobStore,
 		instance:   instance,
 		lock:       lock,
 		jobHandler: jobHandler,
@@ -39,7 +39,7 @@ func newEnqueueScheduler(repository store.EnqueuedJobStore, lock lock.Distribute
 }
 
 func (em *enqueueJobsManager) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args ...any) (int64, error) {
-	if jobID, err := em.repository.Insert(ctx, name, scheduledAt, args...); err != nil {
+	if jobID, err := em.store.Insert(ctx, name, scheduledAt, args...); err != nil {
 		log.Println(err.Error())
 		return 0, err
 	} else {
@@ -61,7 +61,7 @@ func (em *enqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
 			if err := em.lock.Acquire(retryLock); err != nil {
 				return
 			}
-			em.repository.MarkRetryFailedJobs(ctx)
+			em.store.MarkRetryFailedJobs(ctx)
 			em.lock.Release(retryLock)
 		}
 	}
@@ -71,7 +71,7 @@ func (em *enqueueJobsManager) Start(ctx context.Context, interval, workerCount, 
 
 	em.startResultProcessor(ctx)
 
-	if err := em.repository.UnlockStaleJobs(ctx, 5*time.Minute); err != nil {
+	if err := em.store.UnlockStaleJobs(ctx, 5*time.Minute); err != nil {
 		log.Fatal(err.Error())
 	}
 
@@ -91,7 +91,7 @@ func (em *enqueueJobsManager) Start(ctx context.Context, interval, workerCount, 
 }
 
 func (em *enqueueJobsManager) ExecuteJobManually(ctx context.Context, jobID int64) error {
-	job, err := em.repository.FindByID(ctx, jobID)
+	job, err := em.store.FindByID(ctx, jobID)
 	if err != nil {
 		return fmt.Errorf("job not found: %w", err)
 	}
@@ -130,11 +130,11 @@ func (em *enqueueJobsManager) startResultProcessor(ctx context.Context) {
 				switch res.Status {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
-						em.repository.MarkSuccess(ctx, res.JobID)
+						em.store.MarkSuccess(ctx, res.JobID)
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
-						em.repository.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts)
+						em.store.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts)
 					}
 				default:
 					log.Printf("unknown job status: %sm", res.Status)
@@ -148,7 +148,7 @@ func (em *enqueueJobsManager) processDueJobs(ctx context.Context, sem *semaphore
 	log.Println("start to process enqueued jobs")
 	now := time.Now()
 	statuses := []state.JobStatus{state.StatusQueued, state.StatusRetrying}
-	jobsList, err := em.repository.FetchDueJobs(ctx, 1, batchSize, statuses, &now)
+	jobsList, err := em.store.FetchDueJobs(ctx, 1, batchSize, statuses, &now)
 	if err != nil {
 		log.Println("fetch error:", err)
 		time.Sleep(2 * time.Second)
@@ -156,7 +156,7 @@ func (em *enqueueJobsManager) processDueJobs(ctx context.Context, sem *semaphore
 	}
 
 	for _, job := range jobsList.Items {
-		ok, err := em.repository.LockJob(ctx, job.ID, em.instance)
+		ok, err := em.store.LockJob(ctx, job.ID, em.instance)
 		if err != nil || !ok {
 			log.Println(err)
 			continue
@@ -248,7 +248,7 @@ func (em *enqueueJobsManager) StartQueueAndStorageSyncWorker(ctx context.Context
 			if len(jobsBatch) == 0 {
 				return
 			}
-			if err := em.repository.BulkInsert(ctx, jobsBatch); err != nil {
+			if err := em.store.BulkInsert(ctx, jobsBatch); err != nil {
 				log.Printf("failed to insert batch jobs: %v", err)
 			} else {
 				log.Printf("inserted %d jobs in batch", len(jobsBatch))
