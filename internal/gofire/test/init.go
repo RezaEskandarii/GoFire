@@ -56,17 +56,17 @@ func init() {
 	}
 
 	mockEnqueuedStore := mocks.NewMockEnqueuedJobStore()
-	cronJobStore := mocks.NewMockCronJobStore()
+	mockCronJobStore := mocks.NewMockCronJobStore()
 
-	lockMgr := mocks.NewMockDistributedLockManager()
-	messageBroker := mocks.NewMockMessageBroker(1000)
+	mockDistributedLockManager := mocks.NewMockDistributedLockManager()
+	mockMessageBroker := mocks.NewMockMessageBroker(1000)
 
 	testJobManager = gofire.NewJobManager(
 		mockEnqueuedStore,
-		cronJobStore,
+		mockCronJobStore,
 		createTestJobHandler(),
-		lockMgr,
-		messageBroker,
+		mockDistributedLockManager,
+		mockMessageBroker,
 		cfg.UseQueueWriter,
 		cfg.RabbitMQConfig.Queue,
 	)

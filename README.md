@@ -55,7 +55,7 @@ func main() {
 
     // Register job handlers
     cfg.RegisterHandler(config.MethodHandler{
-        MethodName: "SendSMS",
+        JobName: "SendSMS",
         Func: func(args ...any) error {
             to := args[0].(string)
             message := args[1].(string)
@@ -64,7 +64,7 @@ func main() {
     })
 
     cfg.RegisterHandler(config.MethodHandler{
-      MethodName: "DailyEmailNotificationJob",
+      JobName: "DailyEmailNotificationJob",
       Func: func(args ...any) error {
         address := args[0].(string)
         body := args[1].(string)
