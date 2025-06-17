@@ -20,12 +20,12 @@ type enqueueJobsManager struct {
 	store      store.EnqueuedJobStore
 	instance   string
 	lock       lock.DistributedLockManager
-	jobHandler JobHandler
+	jobHandler *JobHandler
 	jobResults chan models.JobResult
 	mBroker    message_broaker.MessageBroker
 }
 
-func newEnqueueScheduler(jobStore store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
+func newEnqueueScheduler(jobStore store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler *JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
 	scheduler := enqueueJobsManager{
 		store:      jobStore,
 		instance:   instance,

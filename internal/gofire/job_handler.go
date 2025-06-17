@@ -10,8 +10,8 @@ type JobHandler struct {
 	mutex    sync.Mutex
 }
 
-func NewJobHandler() JobHandler {
-	return JobHandler{
+func NewJobHandler() *JobHandler {
+	return &JobHandler{
 		handlers: make(map[string]func(args ...any) error),
 	}
 }

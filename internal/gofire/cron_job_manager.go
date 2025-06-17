@@ -19,12 +19,12 @@ import (
 type cronJobManager struct {
 	jobStore   store.CronJobStore
 	lock       lock.DistributedLockManager
-	jobHandler JobHandler
+	jobHandler *JobHandler
 	instance   string
 	jobResults chan models.JobResult
 }
 
-func newCronJobManager(cronJobStore store.CronJobStore, lock lock.DistributedLockManager, jobHandler JobHandler, instance string) cronJobManager {
+func newCronJobManager(cronJobStore store.CronJobStore, lock lock.DistributedLockManager, jobHandler *JobHandler, instance string) cronJobManager {
 	scheduler := cronJobManager{
 		jobStore:   cronJobStore,
 		lock:       lock,

@@ -34,7 +34,7 @@ import (
 // Returns:
 //   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
 //   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
-func SetUp(ctx context.Context, cfg config.GofireConfig) (JobManager, error) {
+func SetUp(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
 	sqlDB, redisClient, err := getStorageConnections(cfg)
 	if err != nil {
 		return nil, err
@@ -109,8 +109,8 @@ func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, err
 }
 
 // startJobReaders launches goroutines for processing enqueued and cron jobs.
-// Uses the JobManagerService wait group to track job reader lifecycle.
-func startJobReaders(ctx context.Context, jm *JobManagerService, managers *JobManagers, cfg config.GofireConfig) {
+// Uses the JobManager wait group to track job reader lifecycle.
+func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers, cfg config.GofireConfig) {
 	go func() {
 		defer jm.wg.Done()
 		go managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)

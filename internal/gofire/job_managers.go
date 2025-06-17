@@ -20,7 +20,7 @@ type JobManagers struct {
 	MessageBroker    message_broaker.MessageBroker
 }
 
-func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redis.Client, jobHandler JobHandler) (*JobManagers, error) {
+func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redis.Client, jobHandler *JobHandler) (*JobManagers, error) {
 	enqueuedJobStore := CreateEnqueuedJobStore(cfg.StorageDriver, sqlDB, redisClient)
 	cronJobStore := CreateCronJobStore(cfg.StorageDriver, sqlDB, redisClient)
 	userStore := CreateUserStore(cfg.StorageDriver, sqlDB, redisClient)
