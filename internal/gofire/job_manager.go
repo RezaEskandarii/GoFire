@@ -18,67 +18,11 @@ import (
 	"time"
 )
 
-// JobManager defines methods for scheduling and managing background tasks.
-type JobManager interface {
-
-	// Enqueue either directly stores the job in the database (if disabled queue mode),
-	// or publishes it to a message broker like RabbitMQ if enabled.
-	// In queue mode, it returns 0 as job ID is unknown at this stage.
-	Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error)
-
-	// RemoveEnqueue deletes a queued job using its ID.
-	RemoveEnqueue(ctx context.Context, jobID int64) error
-
-	// FindEnqueue returns the details of a queued job by its ID.
-	FindEnqueue(ctx context.Context, jobID int64) (*models.EnqueuedJob, error)
-
-	// Schedule sets up a recurring job based on a cron expression.
-	Schedule(ctx context.Context, jobName string, expression string, args ...any) (int64, error)
-
-	// ActivateSchedule enables a scheduled job if it was previously disabled.
-	ActivateSchedule(ctx context.Context, jobID int64)
-
-	// DeActivateSchedule temporarily disables a scheduled job.
-	DeActivateSchedule(ctx context.Context, jobID int64)
-
-	// ScheduleEveryMinute runs a job once every minute.
-	ScheduleEveryMinute(ctx context.Context, jobName string, args ...any) (int64, error)
-
-	// ScheduleEveryHour runs a job once every hour.
-	ScheduleEveryHour(ctx context.Context, jobName string, args ...any) (int64, error)
-
-	// ScheduleEveryDay runs a job once every day.
-	ScheduleEveryDay(ctx context.Context, jobName string, args ...any) (int64, error)
-
-	// ScheduleEveryWeek runs a job once a week.
-	ScheduleEveryWeek(ctx context.Context, jobName string, args ...any) (int64, error)
-
-	// ScheduleEveryMonth runs a job once a month.
-	ScheduleEveryMonth(ctx context.Context, jobName string, args ...any) (int64, error)
-
-	// ScheduleEveryYear runs a job once a year.
-	ScheduleEveryYear(ctx context.Context, jobName string, args ...any) (int64, error)
-
-	// ScheduleInvokeWithTimer looks up a registered job by name and schedules it to run repeatedly
-	// based on the given expression, using a lightweight timer.
-	ScheduleInvokeWithTimer(ctx context.Context, jobName string, expression string, args ...any) error
-
-	// ScheduleFuncWithTimer runs a custom function on a schedule using timers.
-	ScheduleFuncWithTimer(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error
-
-	// ShutDown listens for system interrupt or termination signals (SIGINT, SIGTERM)
-	// and performs a graceful shutdown of the JobManagerService by closing
-	// the CronJobStore and EnqueuedJobStore resources.
-	// It blocks execution until one of the specified signals is received,
-	// then releases resources and logs shutdown progress.
-	ShutDown()
-}
-
-type JobManagerService struct {
+type JobManager struct {
 	EnqueuedJobStore store.EnqueuedJobStore
 	CronJobStore     store.CronJobStore
 	MBroker          message_broaker.MessageBroker
-	JobHandler       JobHandler
+	JobHandler       *JobHandler
 	lockManager      lock.DistributedLockManager
 	cancel           context.CancelFunc
 	wg               sync.WaitGroup
@@ -86,8 +30,8 @@ type JobManagerService struct {
 	jobQueueName     string
 }
 
-func NewJobManager(enqueuedStore store.EnqueuedJobStore, cronStore store.CronJobStore, jobHandler JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManagerService {
-	return &JobManagerService{
+func NewJobManager(enqueuedStore store.EnqueuedJobStore, cronStore store.CronJobStore, jobHandler *JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManager {
+	return &JobManager{
 		EnqueuedJobStore: enqueuedStore,
 		lockManager:      lockManager,
 		CronJobStore:     cronStore,
@@ -98,7 +42,10 @@ func NewJobManager(enqueuedStore store.EnqueuedJobStore, cronStore store.CronJob
 	}
 }
 
-func (jm *JobManagerService) Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
+// Enqueue either directly stores the job in the database (if disabled queue mode),
+// or publishes it to a message broker like RabbitMQ if enabled.
+// In queue mode, it returns 0 as job ID is unknown at this stage.
+func (jm *JobManager) Enqueue(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error) {
 	if !jm.writeJobsToQueue {
 		return jm.EnqueuedJobStore.Insert(ctx, jobName, enqueueAt, args...)
 	}
@@ -121,19 +68,23 @@ func (jm *JobManagerService) Enqueue(ctx context.Context, jobName string, enqueu
 	return 0, nil
 }
 
-func (jm *JobManagerService) RemoveEnqueue(ctx context.Context, jobID int64) error {
+// RemoveEnqueue deletes a queued job using its ID.
+func (jm *JobManager) RemoveEnqueue(ctx context.Context, jobID int64) error {
 	return jm.EnqueuedJobStore.RemoveByID(ctx, jobID)
 }
 
-func (jm *JobManagerService) FindEnqueue(ctx context.Context, jobID int64) (*models.EnqueuedJob, error) {
+// FindEnqueue returns the details of a queued job by its ID.
+func (jm *JobManager) FindEnqueue(ctx context.Context, jobID int64) (*models.EnqueuedJob, error) {
 	return jm.EnqueuedJobStore.FindByID(ctx, jobID)
 }
 
-func (jm *JobManagerService) Schedule(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {
+// Schedule sets up a recurring job based on a cron expression.
+func (jm *JobManager) Schedule(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {
 	return jm.addOrUpdate(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ScheduleEveryMinute(ctx context.Context, jobName string, args ...any) (int64, error) {
+// ScheduleEveryMinute runs a job once every minute.
+func (jm *JobManager) ScheduleEveryMinute(ctx context.Context, jobName string, args ...any) (int64, error) {
 	expression := "* * * * *"
 	if _, err := jm.addOrUpdate(ctx, jobName, expression, args...); err != nil {
 		return 0, err
@@ -141,7 +92,8 @@ func (jm *JobManagerService) ScheduleEveryMinute(ctx context.Context, jobName st
 	return jm.Schedule(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ScheduleEveryHour(ctx context.Context, jobName string, args ...any) (int64, error) {
+// ScheduleEveryHour runs a job once every hour.
+func (jm *JobManager) ScheduleEveryHour(ctx context.Context, jobName string, args ...any) (int64, error) {
 	expression := "0 * * * *"
 	if _, err := jm.addOrUpdate(ctx, jobName, expression, args...); err != nil {
 		return 0, err
@@ -149,7 +101,8 @@ func (jm *JobManagerService) ScheduleEveryHour(ctx context.Context, jobName stri
 	return jm.Schedule(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ScheduleEveryDay(ctx context.Context, jobName string, args ...any) (int64, error) {
+// ScheduleEveryDay runs a job once every day.
+func (jm *JobManager) ScheduleEveryDay(ctx context.Context, jobName string, args ...any) (int64, error) {
 	expression := "0 0 * * *"
 	if _, err := jm.addOrUpdate(ctx, jobName, expression, args...); err != nil {
 		return 0, err
@@ -157,7 +110,8 @@ func (jm *JobManagerService) ScheduleEveryDay(ctx context.Context, jobName strin
 	return jm.Schedule(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ScheduleEveryWeek(ctx context.Context, jobName string, args ...any) (int64, error) {
+// ScheduleEveryWeek runs a job once a week.
+func (jm *JobManager) ScheduleEveryWeek(ctx context.Context, jobName string, args ...any) (int64, error) {
 	expression := "0 0 * * 0"
 	if _, err := jm.addOrUpdate(ctx, jobName, expression, args...); err != nil {
 		return 0, err
@@ -165,7 +119,8 @@ func (jm *JobManagerService) ScheduleEveryWeek(ctx context.Context, jobName stri
 	return jm.Schedule(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ScheduleEveryMonth(ctx context.Context, jobName string, args ...any) (int64, error) {
+// ScheduleEveryMonth runs a job once a month.
+func (jm *JobManager) ScheduleEveryMonth(ctx context.Context, jobName string, args ...any) (int64, error) {
 	expression := "0 0 1 * *"
 	if _, err := jm.addOrUpdate(ctx, jobName, expression, args...); err != nil {
 		return 0, err
@@ -173,7 +128,8 @@ func (jm *JobManagerService) ScheduleEveryMonth(ctx context.Context, jobName str
 	return jm.Schedule(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ScheduleEveryYear(ctx context.Context, jobName string, args ...any) (int64, error) {
+// ScheduleEveryYear runs a job once a year.
+func (jm *JobManager) ScheduleEveryYear(ctx context.Context, jobName string, args ...any) (int64, error) {
 	expression := "0 0 1 1 *"
 	if _, err := jm.addOrUpdate(ctx, jobName, expression, args...); err != nil {
 		return 0, err
@@ -181,15 +137,19 @@ func (jm *JobManagerService) ScheduleEveryYear(ctx context.Context, jobName stri
 	return jm.Schedule(ctx, jobName, expression, args...)
 }
 
-func (jm *JobManagerService) ActivateSchedule(ctx context.Context, jobID int64) {
+// ActivateSchedule enables a scheduled job if it was previously disabled.
+func (jm *JobManager) ActivateSchedule(ctx context.Context, jobID int64) {
 	jm.CronJobStore.Activate(ctx, jobID)
 }
 
-func (jm *JobManagerService) DeActivateSchedule(ctx context.Context, jobID int64) {
+// DeActivateSchedule temporarily disables a scheduled job.
+func (jm *JobManager) DeActivateSchedule(ctx context.Context, jobID int64) {
 	jm.CronJobStore.DeActivate(ctx, jobID)
 }
 
-func (jm *JobManagerService) ScheduleInvokeWithTimer(ctx context.Context, jobName string, expression string, args ...any) error {
+// ScheduleInvokeWithTimer looks up a registered job by name and schedules it to run repeatedly
+// based on the given expression, using a lightweight timer.
+func (jm *JobManager) ScheduleInvokeWithTimer(ctx context.Context, jobName string, expression string, args ...any) error {
 	runJob := func(args ...any) error {
 		if !jm.JobHandler.Exists(jobName) {
 			return fmt.Errorf("handler for '%s' not found", jobName)
@@ -207,11 +167,17 @@ func (jm *JobManagerService) ScheduleInvokeWithTimer(ctx context.Context, jobNam
 	return nil
 }
 
-func (jm *JobManagerService) ScheduleFuncWithTimer(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error {
+// ScheduleFuncWithTimer runs a custom function on a schedule using timers.
+func (jm *JobManager) ScheduleFuncWithTimer(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error {
 	return jm.runWithTimerInternal(ctx, expression, fn, args...)
 }
 
-func (jm *JobManagerService) ShutDown() {
+// ShutDown listens for system interrupt or termination signals (SIGINT, SIGTERM)
+// and performs a graceful shutdown of the JobManager by closing
+// the CronJobStore and EnqueuedJobStore resources.
+// It blocks execution until one of the specified signals is received,
+// then releases resources and logs shutdown progress.
+func (jm *JobManager) ShutDown() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Wait for shutdown signal
@@ -242,7 +208,7 @@ func (jm *JobManagerService) ShutDown() {
 	log.Println("Gofire Shutdown complete.")
 }
 
-func (jm *JobManagerService) runWithTimerInternal(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error {
+func (jm *JobManager) runWithTimerInternal(ctx context.Context, expression string, fn func(args ...any) error, args ...any) error {
 	for {
 		next := parser.CalculateNextRun(expression, time.Now())
 		duration := time.Until(next)
@@ -270,7 +236,7 @@ func (jm *JobManagerService) runWithTimerInternal(ctx context.Context, expressio
 	}
 }
 
-func (jm *JobManagerService) addOrUpdate(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {
+func (jm *JobManager) addOrUpdate(ctx context.Context, jobName string, expression string, args ...any) (int64, error) {
 	scheduledAt := parser.CalculateNextRun(expression, time.Now())
 	return jm.CronJobStore.AddOrUpdate(ctx, jobName, scheduledAt, expression, args...)
 }
