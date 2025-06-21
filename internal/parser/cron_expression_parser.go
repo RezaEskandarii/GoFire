@@ -29,21 +29,62 @@ type CronExpr struct {
 func parsePart(part string, min, max int) ([]int, error) {
 	set := make(map[int]struct{})
 
-	if part == "*" {
-		// Wildcard means all values in the range
-		for i := min; i <= max; i++ {
+	if part == "*" || strings.HasPrefix(part, "*/") {
+		step := 1
+		if strings.HasPrefix(part, "*/") {
+			s, err := strconv.Atoi(part[2:])
+			if err != nil || s <= 0 {
+				return nil, fmt.Errorf("invalid step: %s", part)
+			}
+			step = s
+		}
+		for i := min; i <= max; i += step {
 			set[i] = struct{}{}
 		}
 	} else {
-		// Support comma-separated values and ranges
 		for _, token := range strings.Split(part, ",") {
-			if strings.Contains(token, "-") {
-				bounds := strings.Split(token, "-")
-				if len(bounds) != 2 {
+			if strings.Contains(token, "/") {
+				rangeAndStep := strings.Split(token, "/")
+				if len(rangeAndStep) != 2 {
+					return nil, fmt.Errorf("invalid step expression: %s", token)
+				}
+				base := rangeAndStep[0]
+				step, err := strconv.Atoi(rangeAndStep[1])
+				if err != nil || step <= 0 {
+					return nil, fmt.Errorf("invalid step value: %s", token)
+				}
+
+				var rStart, rEnd int
+				if base == "*" {
+					rStart, rEnd = min, max
+				} else if strings.Contains(base, "-") {
+					parts := strings.Split(base, "-")
+					if len(parts) != 2 {
+						return nil, fmt.Errorf("invalid range: %s", base)
+					}
+					rStart, err = strconv.Atoi(parts[0])
+					rEnd, err2 := strconv.Atoi(parts[1])
+					if err != nil || err2 != nil || rStart > rEnd || rStart < min || rEnd > max {
+						return nil, fmt.Errorf("invalid range: %s", base)
+					}
+				} else {
+					num, err := strconv.Atoi(base)
+					if err != nil || num < min || num > max {
+						return nil, fmt.Errorf("invalid value: %s", base)
+					}
+					rStart, rEnd = num, max
+				}
+
+				for i := rStart; i <= rEnd; i += step {
+					set[i] = struct{}{}
+				}
+			} else if strings.Contains(token, "-") {
+				parts := strings.Split(token, "-")
+				if len(parts) != 2 {
 					return nil, fmt.Errorf("invalid range: %s", token)
 				}
-				start, err1 := strconv.Atoi(bounds[0])
-				end, err2 := strconv.Atoi(bounds[1])
+				start, err1 := strconv.Atoi(parts[0])
+				end, err2 := strconv.Atoi(parts[1])
 				if err1 != nil || err2 != nil || start > end || start < min || end > max {
 					return nil, fmt.Errorf("invalid range: %s", token)
 				}
@@ -60,7 +101,6 @@ func parsePart(part string, min, max int) ([]int, error) {
 		}
 	}
 
-	// Convert set to sorted slice
 	result := make([]int, 0, len(set))
 	for val := range set {
 		result = append(result, val)
