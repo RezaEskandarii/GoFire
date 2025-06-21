@@ -1,8 +1,9 @@
-package lock
+package test
 
 import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"gofire/internal/lock"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func TestPostgresDistributedLockManager_Acquire_Success(t *testing.T) {
 		WithArgs(lockID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	manager := NewPostgresDistributedLockManager(db)
+	manager := lock.NewPostgresDistributedLockManager(db)
 	err = manager.Acquire(lockID)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -32,7 +33,7 @@ func TestPostgresDistributedLockManager_Acquire_Error(t *testing.T) {
 		WithArgs(lockID).
 		WillReturnError(assert.AnError)
 
-	manager := NewPostgresDistributedLockManager(db)
+	manager := lock.NewPostgresDistributedLockManager(db)
 	err = manager.Acquire(lockID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to acquire lock")
@@ -49,7 +50,7 @@ func TestPostgresDistributedLockManager_Release_Success(t *testing.T) {
 		WithArgs(lockID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	manager := NewPostgresDistributedLockManager(db)
+	manager := lock.NewPostgresDistributedLockManager(db)
 	err = manager.Release(lockID)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -65,7 +66,7 @@ func TestPostgresDistributedLockManager_Release_Error(t *testing.T) {
 		WithArgs(lockID).
 		WillReturnError(assert.AnError)
 
-	manager := NewPostgresDistributedLockManager(db)
+	manager := lock.NewPostgresDistributedLockManager(db)
 	err = manager.Release(lockID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to release lock")
