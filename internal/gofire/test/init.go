@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-var testJobManager gofire.JobManager
-var benchJobManager gofire.JobManager
+var testJobManager *gofire.JobManager
+var benchJobManager *gofire.JobManager
 var cfg *config.GofireConfig
 
 func init() {
@@ -80,7 +80,7 @@ func sendSms(to string, message string, writeToLog bool) error {
 	return nil
 }
 
-func createTestJobHandler() gofire.JobHandler {
+func createTestJobHandler() *gofire.JobHandler {
 	jh := gofire.NewJobHandler()
 	_ = jh.Register("email", func(args ...any) error {
 		return nil
