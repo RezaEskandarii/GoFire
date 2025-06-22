@@ -1,9 +1,13 @@
 package config
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"gofire/pgk/custom_errors"
+)
 
 type GofireConfig struct {
-	DashboardPort int // Port number used to serve the monitoring dashboard (e.g., 8080)
+	DashboardPort uint // Port number used to serve the monitoring dashboard (e.g., 8080)
 
 	DashboardUserName    string          // Username required for accessing the dashboard (if auth is enabled)
 	DashboardPassword    string          // Password required for accessing the dashboard (if auth is enabled)
@@ -60,10 +64,13 @@ type RabbitMQConfig struct {
 	ContentType string
 }
 
+// Option type for functional options pattern
+type Option func(*GofireConfig) error
+
 // NewGofireConfig creates a new instance of GofireConfig with default values.
 // Only the 'Instance' name is required; other fields use predefined defaults.
-func NewGofireConfig(instance string) *GofireConfig {
-	return &GofireConfig{
+func NewGofireConfig(instance string, opts ...Option) (*GofireConfig, error) {
+	cfg := &GofireConfig{
 		Instance:         instance,
 		EnqueueInterval:  DefaultEnqueueInterval,
 		WorkerCount:      DefaultWorkerCount,
@@ -72,58 +79,109 @@ func NewGofireConfig(instance string) *GofireConfig {
 		ScheduleInterval: DefaultCronJobInterval,
 		RabbitMQConfig:   &RabbitMQConfig{},
 	}
-}
-
-func (c *GofireConfig) WithAdminDashboardConfig(username, password, secretKey string, port int) *GofireConfig {
-	c.DashboardAuthEnabled = true
-	c.DashboardUserName = username
-	c.DashboardPassword = password
-	c.SecretKey = secretKey
-	c.DashboardPort = port
-	return c
-}
-
-func (c *GofireConfig) WithPostgresConfig(pg PostgresConfig) *GofireConfig {
-	if c.StorageDriver != Postgres {
-		panic(fmt.Sprintf("Cannot set Postgres config when driver is %s", c.StorageDriver.String()))
+	validationErrs := &custom_errors.ValidationError{}
+	for _, opt := range opts {
+		if err := opt(cfg); err != nil {
+			validationErrs.Add(err)
+		}
 	}
-	c.StorageDriver = Postgres
-	c.PostgresConfig = pg
-	return c
-}
 
-func (c *GofireConfig) WithRedisConfig(r RedisConfig) *GofireConfig {
-	if c.StorageDriver != Redis {
-		panic(fmt.Sprintf("Cannot set Redis config when driver is %s", c.StorageDriver.String()))
+	if validationErrs.HasError() {
+		return nil, validationErrs
 	}
-	c.StorageDriver = Redis
-	c.RedisConfig = r
-	return c
+	return cfg, nil
 }
 
-func (c *GofireConfig) WithWorkerCount(n int) *GofireConfig {
-	c.WorkerCount = n
-	return c
+func WithAdminDashboardConfig(username, password, secretKey string, port uint) Option {
+	return func(c *GofireConfig) error {
+		if username == "" || password == "" || secretKey == "" || port == 0 {
+			return errors.New("admin dashboard config: username, password, secretKey, and port are required")
+		}
+
+		c.DashboardAuthEnabled = true
+		c.DashboardUserName = username
+		c.DashboardPassword = password
+		c.SecretKey = secretKey
+		c.DashboardPort = port
+		return nil
+	}
 }
 
-func (c *GofireConfig) WithEnqueueInterval(seconds int) *GofireConfig {
-	c.EnqueueInterval = seconds
-	return c
+func WithPostgresConfig(pg PostgresConfig) Option {
+	return func(c *GofireConfig) error {
+		if c.StorageDriver != Postgres {
+			return fmt.Errorf("cannot set Postgres config when driver is %s", c.StorageDriver.String())
+		}
+		if pg.ConnectionUrl == "" {
+			return errors.New("postgres config: connection URL is required")
+		}
+		c.StorageDriver = Postgres
+		c.PostgresConfig = pg
+		return nil
+	}
 }
 
-func (c *GofireConfig) WithScheduleIntervalInterval(seconds int) *GofireConfig {
-	c.ScheduleInterval = seconds
-	return c
+func WithRedisConfig(r RedisConfig) Option {
+	return func(c *GofireConfig) error {
+		if c.StorageDriver != Redis {
+			return fmt.Errorf("cannot set Redis config when driver is %s", c.StorageDriver.String())
+		}
+		if r.Address == "" {
+			return errors.New("redis config: address is required")
+		}
+		c.StorageDriver = Redis
+		c.RedisConfig = r
+		return nil
+	}
 }
 
-func (c *GofireConfig) WithBatchSize(batchSize int) *GofireConfig {
-	c.BatchSize = batchSize
-	return c
+func WithWorkerCount(n int) Option {
+	return func(c *GofireConfig) error {
+		if n < 1 {
+			return errors.New("worker count must be positive")
+		}
+		c.WorkerCount = n
+		return nil
+	}
 }
 
-func (c *GofireConfig) RegisterHandler(handler MethodHandler) *GofireConfig {
+func WithEnqueueInterval(seconds int) Option {
+	return func(c *GofireConfig) error {
+		if seconds < 1 {
+			return errors.New("enqueue interval must be positive")
+		}
+		c.EnqueueInterval = seconds
+		return nil
+	}
+}
+
+func WithScheduleInterval(seconds int) Option {
+	return func(c *GofireConfig) error {
+		if seconds < 1 {
+			return errors.New("schedule interval must be positive")
+		}
+		c.ScheduleInterval = seconds
+		return nil
+	}
+}
+
+func WithBatchSize(batchSize int) Option {
+	return func(c *GofireConfig) error {
+		if batchSize < 1 {
+			return errors.New("batch size must be positive")
+		}
+		c.BatchSize = batchSize
+		return nil
+	}
+}
+
+func (c *GofireConfig) RegisterHandler(handler MethodHandler) error {
+	if handler.JobName == "" || handler.Func == nil {
+		return errors.New("handler must have a job name and function")
+	}
 	c.Handlers = append(c.Handlers, handler)
-	return c
+
+	return nil
 }
 
 // UseRabbitMQueueWriter enables or disables writing jobs first to RabbitMQ queue.
@@ -131,15 +189,24 @@ func (c *GofireConfig) RegisterHandler(handler MethodHandler) *GofireConfig {
 // and later consumed in batches for bulk writing into the database.
 // This approach helps decouple job submission from database writes,
 // improving throughput and scalability.
-func (c *GofireConfig) UseRabbitMQueueWriter(writeToQueue bool) *GofireConfig {
-	c.UseQueueWriter = writeToQueue
-	c.MQDriver = RabbitMQ
-	return c
+func UseRabbitMQueueWriter(writeToQueue bool) Option {
+	return func(c *GofireConfig) error {
+		c.UseQueueWriter = writeToQueue
+		if writeToQueue {
+			c.MQDriver = RabbitMQ
+		}
+		return nil
+	}
 }
 
-func (c *GofireConfig) WithRabbitMQConfig(cfg RabbitMQConfig) *GofireConfig {
-	c.RabbitMQConfig = &cfg
-	c.UseQueueWriter = true
-	c.MQDriver = RabbitMQ
-	return c
+func WithRabbitMQConfig(cfg RabbitMQConfig) Option {
+	return func(c *GofireConfig) error {
+		if cfg.URL == "" {
+			return errors.New("rabbitmq config: URL is required")
+		}
+		c.RabbitMQConfig = &cfg
+		c.UseQueueWriter = true
+		c.MQDriver = RabbitMQ
+		return nil
+	}
 }
