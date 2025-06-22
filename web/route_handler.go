@@ -28,7 +28,7 @@ type HttpRouteHandler struct {
 	userStore        store.UserStore
 	SecretKey        string
 	UseAuth          bool
-	Port             int
+	Port             uint
 }
 
 func NewRouteHandler(
@@ -37,7 +37,7 @@ func NewRouteHandler(
 	cronJobStore store.CronJobStore,
 	secretKey string,
 	useAuth bool,
-	port int,
+	port uint,
 ) HttpRouteHandler {
 	return HttpRouteHandler{
 		enqueuedJobStore: enqueueStore,
