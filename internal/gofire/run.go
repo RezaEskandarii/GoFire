@@ -35,6 +35,13 @@ import (
 //   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
 //   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
 func SetUp(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+
 	sqlDB, redisClient, err := getStorageConnections(cfg)
 	if err != nil {
 		return nil, err
@@ -101,7 +108,7 @@ func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, err
 		setPostgresConnectionPool(sqlDB)
 
 	case config.Redis:
-		redisClient = setupRedis(cfg.RedisConfig.Address, cfg.RedisConfig.Password, cfg.RedisConfig.DB)
+		panic("redis storage driver not yet supported")
 	default:
 		return nil, nil, fmt.Errorf("unsupported driver: %v", cfg.StorageDriver)
 	}

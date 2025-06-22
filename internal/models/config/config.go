@@ -121,20 +121,6 @@ func WithPostgresConfig(pg PostgresConfig) Option {
 	}
 }
 
-func WithRedisConfig(r RedisConfig) Option {
-	return func(c *GofireConfig) error {
-		if c.StorageDriver != Redis {
-			return fmt.Errorf("cannot set Redis config when driver is %s", c.StorageDriver.String())
-		}
-		if r.Address == "" {
-			return errors.New("redis config: address is required")
-		}
-		c.StorageDriver = Redis
-		c.RedisConfig = r
-		return nil
-	}
-}
-
 func WithWorkerCount(n int) Option {
 	return func(c *GofireConfig) error {
 		if n < 1 {
