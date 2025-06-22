@@ -39,5 +39,6 @@ type CronJobStore interface {
 	// Deactivate Job
 	DeActivate(ctx context.Context, jobID int64) error
 
+	// Close closes the database
 	Close() error
 }

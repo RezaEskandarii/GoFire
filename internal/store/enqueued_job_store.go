@@ -45,5 +45,6 @@ type EnqueuedJobStore interface {
 
 	BulkInsert(ctx context.Context, batch []models.Job) error
 
+	// Close closes the database
 	Close() error
 }
