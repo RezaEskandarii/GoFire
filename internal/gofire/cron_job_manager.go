@@ -38,9 +38,6 @@ func newCronJobManager(cronJobStore store.CronJobStore, lock lock.DistributedLoc
 
 func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCount, batchSize int) error {
 
-	ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
-	defer ticker.Stop()
-
 	sem := semaphore.NewWeighted(int64(workerCount))
 	var wg sync.WaitGroup
 
@@ -50,8 +47,9 @@ func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCoun
 			log.Println("cronJobManager stopped")
 			wg.Wait()
 			return ctx.Err()
-		case <-ticker.C:
+		default:
 			cm.processCronJobs(ctx, sem, &wg, batchSize)
+			time.Sleep(time.Duration(intervalSeconds) * time.Second)
 		}
 	}
 }
@@ -143,7 +141,6 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
 						cm.jobStore.MarkSuccess(ctx, res.JobID)
-						cm.jobStore.UnLockJob(ctx, res.JobID)
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
