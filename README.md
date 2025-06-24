@@ -42,17 +42,21 @@ import (
 
 func main() {
     // Configure GoFire
-    cfg := config.NewGofireConfig("instance-name").
-        WithEnqueueInterval(60).                // Enqueue check interval in seconds
-        WithSchedulerInterval(60).              // Scheduler check interval in seconds
-        WithDashboardPort(8080).                // Web dashboard port
-        WithWorkerCount(15).                    // Number of concurrent workers
-        WithBatchSize(500).                     // Batch size for job processing
-        WithPostgresConfig(config.PostgresConfig{
-            ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
-        }).
-        WithAdminDashboardConfig("admin", "password", "secret-key")
-
+    cfg, err := config.NewGofireConfig("instance-name",
+      config.WithEnqueueInterval(60),  // Enqueue check interval in seconds
+      config.WithScheduleInterval(60), // Scheduler check interval in seconds
+      config.WithWorkerCount(15),      // Number of concurrent workers
+      config.WithBatchSize(500),       // Batch size for job processing
+      config.WithPostgresConfig(config.PostgresConfig{
+        ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
+      }),
+      config.WithAdminDashboardConfig("admin", "password", "secret-key", 8080),
+    )
+  
+    if err != nil {
+      log.Fatal(err)
+    }
+	
     // Register job handlers
     cfg.RegisterHandler(config.MethodHandler{
         JobName: "SendSMS",
