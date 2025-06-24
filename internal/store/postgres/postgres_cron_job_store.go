@@ -65,7 +65,7 @@ func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, p
 	where := `
 		is_active = TRUE
 		AND (next_run_at IS NULL OR next_run_at <= now())
-		AND (
+		OR (
 			status = 'queued'
 			OR status = 'retrying'
 			OR (status = 'processing' AND locked_at < now() - interval '` + lockTTL + `')
@@ -244,7 +244,7 @@ func (r *PostgresCronJobStore) MarkSuccess(ctx context.Context, jobID int64) err
 	UPDATE gofire_schema.cron_jobs
 	SET status = $1,
 	        last_error = NULL,
-	        SET locked_at = NULL,
+	        locked_at = NULL,
             locked_by = NULL
 	WHERE id = $2;
 	`
@@ -269,8 +269,8 @@ func (r *PostgresCronJobStore) LockJob(ctx context.Context, jobID int64, lockedB
 		SET locked_at = NOW(), 
 		    locked_by = $1,
 		    status = $2
-		WHERE id = $3 AND (status = $4 OR status = $5)
-	`, lockedBy, state.StatusProcessing, jobID, state.StatusQueued, state.StatusRetrying)
+		WHERE id = $3 AND (status = $4 OR status = $5 OR status = $6)
+	`, lockedBy, state.StatusProcessing, jobID, state.StatusQueued, state.StatusRetrying, state.StatusSucceeded)
 	if err != nil {
 		return false, err
 	}
