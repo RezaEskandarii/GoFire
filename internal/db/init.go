@@ -32,7 +32,6 @@ func Init(postgresURL string, distributedLock lock.DistributedLockManager) error
 	if err = db.Ping(); err != nil {
 		return err
 	}
-
 	defer db.Close()
 
 	_, err = db.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema))
