@@ -51,7 +51,7 @@ func (r *postgresUserStore) Find(ctx context.Context, username, password string)
 	return user, nil
 }
 func (r *postgresUserStore) FindByUsername(ctx context.Context, username string) (*models.User, error) {
-	query := `SELECT id, username, password FROM gofire_schema.users WHERE username = $1`
+	query := `SELECT id, username FROM gofire_schema.users WHERE username = $1;`
 	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.Username)
 	if err != nil {
