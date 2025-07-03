@@ -21,13 +21,15 @@ func init() {
 	if postgresURL == "" {
 		panic("could not find job_manager_pg_url os env")
 	}
+	var err error
 
-	cfg = config.NewGofireConfig("accounting-app").
-		WithEnqueueInterval(2).
-		WithScheduleIntervalInterval(2).
-		WithWorkerCount(15).
-		WithBatchSize(500).
-		WithPostgresConfig(config.PostgresConfig{ConnectionUrl: postgresURL})
+	cfg, err = config.NewGofireConfig("accounting-api",
+		config.WithEnqueueInterval(6),
+		config.WithScheduleInterval(60),
+		config.WithWorkerCount(15),
+		config.WithBatchSize(500),
+		config.WithPostgresConfig(config.PostgresConfig{ConnectionUrl: postgresURL}),
+	)
 
 	//cfg = cfg.WithRabbitMQConfig(config.RabbitMQConfig{
 	//	URL:         "amqp://guest:guest@localhost:5672/",
@@ -49,8 +51,7 @@ func init() {
 		})
 	}
 
-	var err error
-	benchJobManager, err = gofire.SetUp(context.Background(), *cfg)
+	benchJobManager, err = gofire.BootJobManager(context.Background(), *cfg)
 	if err != nil {
 		panic(fmt.Sprintf("failed to set up job manager: %v", err))
 	}

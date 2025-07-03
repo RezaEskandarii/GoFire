@@ -13,7 +13,7 @@ import (
 	"log"
 )
 
-// SetUp initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
+// BootJobManager initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
 //
 // It dynamically sets up storage backends (PostgreSQL or Redis), registers job handlers,
 // initializes the Storesitories and distributed lock manager, and launches all necessary background services,
@@ -34,7 +34,7 @@ import (
 // Returns:
 //   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
 //   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
-func SetUp(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
+func BootJobManager(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -59,15 +59,18 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
 		return nil, err
 	}
 
-	if err := db.Init(cfg.PostgresConfig.ConnectionUrl, managers.LockMgr); err != nil {
+	if err = db.Init(cfg.PostgresConfig.ConnectionUrl, managers.LockMgr); err != nil {
 		return nil, err
 	}
 
-	createDashboardUser(ctx, &cfg, managers.UserStore)
+	if err = createDashboardAdminIfConfigured(ctx, &cfg, managers.UserStore); err != nil {
+		return nil, err
+	}
 
 	if cfg.DashboardAuthEnabled {
 		runServer(managers, cfg)
 	}
+
 	jm := NewJobManager(
 		managers.EnqueuedJobStore,
 		managers.CronJobStore,
@@ -92,7 +95,9 @@ func SetUp(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
 func runServer(managers *JobManagers, cfg config.GofireConfig) {
 	go func() {
 		router := web.NewRouteHandler(managers.EnqueuedJobStore, managers.UserStore, managers.CronJobStore, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
-		router.Serve()
+		if err := router.Serve(); err != nil {
+			log.Printf("failed to start server: %v", err)
+		}
 	}()
 }
 
@@ -120,33 +125,50 @@ func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, err
 func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers, cfg config.GofireConfig) {
 	go func() {
 		defer jm.wg.Done()
-		go managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize)
+		go func() {
+			if err := managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
+				log.Printf("EnqueueScheduler failed to start: %v", err)
+			}
+		}()
 	}()
 
 	go func() {
 		defer jm.wg.Done()
-		go managers.CronJobManager.Start(ctx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize)
+		go func() {
+			if err := managers.CronJobManager.Start(ctx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
+				log.Printf("CronJobManager failed to start: %v", err)
+			}
+		}()
 	}()
 
 	if cfg.UseQueueWriter {
-		go managers.EnqueueScheduler.StartQueueAndStorageSyncWorker(ctx, cfg.RabbitMQConfig.Queue, cfg.UseQueueWriter)
+		go func() {
+			if err := managers.EnqueueScheduler.StartQueueAndStorageSyncWorker(ctx, cfg.RabbitMQConfig.Queue, cfg.UseQueueWriter); err != nil {
+				log.Printf("EnqueueScheduler failed to startQueueAndStorageSyncWorker: %v", err)
+			}
+		}()
 	}
 }
 
 // setPostgresConnectionPool configures the Postgres connection pool with recommended limits.
 func setPostgresConnectionPool(sqlDB *sql.DB) {
 	sqlDB.SetMaxOpenConns(80)
-	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxIdleConns(30)
 }
 
-// createDashboardUser creates the default dashboard user if credentials are provided
+// createDashboardAdminIfConfigured creates the default dashboard user if credentials are provided
 // and the user does not already exist in the store.
-func createDashboardUser(ctx context.Context, cfg *config.GofireConfig, Store store.UserStore) {
+func createDashboardAdminIfConfigured(ctx context.Context, cfg *config.GofireConfig, Store store.UserStore) error {
 	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
 		if user, err := Store.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
-			Store.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword)
+
+			if _, err := Store.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword); err != nil {
+				return err
+			}
+
 		} else {
-			log.Print(err)
+			return err
 		}
 	}
+	return nil
 }
