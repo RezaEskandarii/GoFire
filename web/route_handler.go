@@ -49,7 +49,8 @@ func NewRouteHandler(
 	}
 }
 
-func (handler *HttpRouteHandler) Serve() {
+func (handler *HttpRouteHandler) Serve() error {
+	// handle routes
 	handler.handleEnqueued()
 	handler.handleCronJobs()
 	handler.handleChangeCronJobStatus()
@@ -57,12 +58,14 @@ func (handler *HttpRouteHandler) Serve() {
 	handler.handleIndex()
 	handler.handleLogin()
 	handler.handleLogout()
+
 	addr := fmt.Sprintf(":%d", handler.Port)
 	printBanner(addr)
 	// Serve embedded static files
 	staticContent, _ := fs.Sub(staticFiles, "static")
+	// handle statics
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))))
-	http.ListenAndServe(addr, nil)
+	return http.ListenAndServe(addr, nil)
 }
 
 func (handler *HttpRouteHandler) handleEnqueued() {
