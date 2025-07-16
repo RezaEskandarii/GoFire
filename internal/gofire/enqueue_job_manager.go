@@ -61,8 +61,12 @@ func (em *enqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
 			if err := em.lock.Acquire(retryLock); err != nil {
 				return
 			}
-			em.store.MarkRetryFailedJobs(ctx)
-			em.lock.Release(retryLock)
+			if err := em.store.MarkRetryFailedJobs(ctx); err != nil {
+				log.Printf("MarkRetryFailedJobs error: %s", err.Error())
+			}
+			if err := em.lock.Release(retryLock); err != nil {
+				log.Printf("Release Retry Job error: %s", err.Error())
+			}
 		}
 	}
 }
@@ -130,11 +134,15 @@ func (em *enqueueJobsManager) startResultProcessor(ctx context.Context) {
 				switch res.Status {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
-						em.store.MarkSuccess(ctx, res.JobID)
+						if err := em.store.MarkSuccess(ctx, res.JobID); err != nil {
+							log.Fatalf("MarkSuccess error: %s", err.Error())
+						}
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
-						em.store.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts)
+						if err := em.store.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts); err != nil {
+							log.Fatalf("MarkFailure error: %s", err.Error())
+						}
 					}
 				default:
 					log.Printf("unknown job status: %sm", res.Status)
