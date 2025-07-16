@@ -77,11 +77,11 @@ func main() {
     })
    	
     // Initialize GoFire
-    jobManager, err := gofire.SetUp(context.Background(), *cfg)
+    jobManager, err := gofire.BootJobManager(context.Background(), *cfg)
     if err != nil {
         log.Fatal(err)
     }
-    defer jobManager.ShutDown() // Graceful shutdown to release system resources and close database connections
+    defer jobManager.GracefulExit() // Graceful shutdown to release system resources and close database connections
 
     // Enqueue a job
     jobManager.Enqueue(ctx, "SendSMS", time.Now().Add(time.Minute*20), "123456789", "Hello!")

@@ -172,12 +172,12 @@ func (jm *JobManager) ScheduleFuncWithTimer(ctx context.Context, expression stri
 	return jm.runWithTimerInternal(ctx, expression, fn, args...)
 }
 
-// ShutDown listens for system interrupt or termination signals (SIGINT, SIGTERM)
+// GracefulExit listens for system interrupt or termination signals (SIGINT, SIGTERM)
 // and performs a graceful shutdown of the JobManager by closing
 // the CronJobStore and EnqueuedJobStore resources.
 // It blocks execution until one of the specified signals is received,
 // then releases resources and logs shutdown progress.
-func (jm *JobManager) ShutDown() {
+func (jm *JobManager) GracefulExit() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Wait for shutdown signal
