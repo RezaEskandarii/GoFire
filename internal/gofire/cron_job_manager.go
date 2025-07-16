@@ -140,16 +140,22 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 				switch res.Status {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
-						cm.jobStore.MarkSuccess(ctx, res.JobID)
+						if err := cm.jobStore.MarkSuccess(ctx, res.JobID); err != nil {
+							log.Printf("MarkSuccess error: %s", err.Error())
+						}
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
-						cm.jobStore.MarkFailure(ctx, res.JobID, res.Err.Error())
+						if err := cm.jobStore.MarkFailure(ctx, res.JobID, res.Err.Error()); err != nil {
+							log.Printf("MarkFailure error: %s", err.Error())
+						}
 					}
 				default:
 					log.Printf("cronJobManager: unknown status: %sm", res.Status)
 				}
-				cm.jobStore.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun)
+				if err := cm.jobStore.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun); err != nil {
+					log.Printf("UpdateJobRunTimes error: %s", err.Error())
+				}
 			}
 		}
 	}()

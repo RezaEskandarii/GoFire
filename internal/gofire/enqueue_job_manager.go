@@ -135,13 +135,13 @@ func (em *enqueueJobsManager) startResultProcessor(ctx context.Context) {
 				case state.StatusSucceeded:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusSucceeded) {
 						if err := em.store.MarkSuccess(ctx, res.JobID); err != nil {
-							log.Fatalf("MarkSuccess error: %s", err.Error())
+							log.Printf("MarkSuccess error: %s", err.Error())
 						}
 					}
 				case state.StatusFailed:
 					if state.IsValidTransition(state.StatusProcessing, state.StatusFailed) {
 						if err := em.store.MarkFailure(ctx, res.JobID, res.Err.Error(), res.Attempts, res.MaxAttempts); err != nil {
-							log.Fatalf("MarkFailure error: %s", err.Error())
+							log.Printf("MarkFailure error: %s", err.Error())
 						}
 					}
 				default:
