@@ -27,12 +27,20 @@ func Init(postgresURL string, distributedLock lock.DistributedLockManager) error
 	if err = distributedLock.Acquire(migrationLock); err != nil {
 		return err
 	}
-	defer distributedLock.Release(migrationLock)
+	defer func() {
+		if err := distributedLock.Release(migrationLock); err != nil {
+			log.Printf("Error releasing lock: %v", err)
+		}
+	}()
 
 	if err = db.Ping(); err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing db: %v", err)
+		}
+	}()
 
 	_, err = db.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema))
 	if err != nil {

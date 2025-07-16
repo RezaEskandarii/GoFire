@@ -32,63 +32,63 @@ Here's a basic example of how to use GoFire:
 package main
 
 import (
-    "context"
-    "gofire/internal/gofire"
-    "gofire/internal/models/config"
-    "os"
-    "os/signal"
-    "syscall"
+  "context"
+  "gofire/internal/gofire"
+  "gofire/internal/models/config"
+  "log"
+  "time"
 )
 
 func main() {
-    // Configure GoFire
-    cfg, err := config.NewGofireConfig("instance-name",
-      config.WithEnqueueInterval(60),  // Enqueue check interval in seconds
-      config.WithScheduleInterval(60), // Scheduler check interval in seconds
-      config.WithWorkerCount(15),      // Number of concurrent workers
-      config.WithBatchSize(500),       // Batch size for job processing
-      config.WithPostgresConfig(config.PostgresConfig{
-        ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
-      }),
-      config.WithAdminDashboardConfig("admin", "password", "secret-key", 8080),
-    )
-  
-    if err != nil {
-      log.Fatal(err)
-    }
-	
-    // Register job handlers
-    cfg.RegisterHandler(config.MethodHandler{
-        JobName: "SendSMS",
-        Func: func(args ...any) error {
-            to := args[0].(string)
-            message := args[1].(string)
-            return sendSms(to, message)
-        },
-    })
+  // Configure GoFire
+  cfg, err := config.NewGofireConfig("instance-name",
+    config.WithEnqueueInterval(60),  // Enqueue check interval in seconds
+    config.WithScheduleInterval(60), // Scheduler check interval in seconds
+    config.WithWorkerCount(15),      // Number of concurrent workers
+    config.WithBatchSize(500),       // Batch size for job processing
+    config.WithPostgresConfig(config.PostgresConfig{
+      ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
+    }),
+    config.WithAdminDashboardConfig("admin", "password", "secret-key", 8080),
+  )
 
-    cfg.RegisterHandler(config.MethodHandler{
-      JobName: "DailyEmailNotificationJob",
-      Func: func(args ...any) error {
-        address := args[0].(string)
-        body := args[1].(string)
-        return sendEmail(address, body)
-      },
-    })
-   	
-    // Initialize GoFire
-    jobManager, err := gofire.BootJobManager(context.Background(), *cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer jobManager.GracefulExit() // Graceful shutdown to release system resources and close database connections
+  if err != nil {
+    log.Fatal(err)
+  }
 
-    // Enqueue a job
-    jobManager.Enqueue(ctx, "SendSMS", time.Now().Add(time.Minute*20), "123456789", "Hello!")
-	
-    // Schedule a job
-    jobManager.Schedule(context.Background(), "DailyEmailNotificationJob", "30 8 * * *", "alice@example.com", "Hello!")
+  // Register job handlers
+  _ = cfg.RegisterHandler(config.MethodHandler{
+    JobName: "SendSMS",
+    Func: func(args ...any) error {
+      to := args[0].(string)
+      message := args[1].(string)
+      return sendSms(to, message)
+    },
+  })
+
+  _ = cfg.RegisterHandler(config.MethodHandler{
+    JobName: "DailyEmailNotificationJob",
+    Func: func(args ...any) error {
+      address := args[0].(string)
+      body := args[1].(string)
+      return sendEmail(address, body)
+    },
+  })
+
+  // Initialize GoFire
+  jobManager, err := gofire.BootJobManager(context.Background(), *cfg)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer jobManager.GracefulExit() // Graceful shutdown to release system resources and close database connections
+
+  // Enqueue a job
+  jobManager.Enqueue(ctx, "SendSMS", time.Now().Add(time.Minute*20), "123456789", "Hello!")
+
+  // Schedule a job
+  jobManager.Schedule(context.Background(), "DailyEmailNotificationJob", "30 8 * * *", "alice@example.com", "Hello!")
 }
+
 ```
 
 ## Job Manager API
