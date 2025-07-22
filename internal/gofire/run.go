@@ -11,6 +11,7 @@ import (
 	"gofire/internal/store"
 	"gofire/web"
 	"log"
+	"runtime"
 )
 
 // BootJobManager initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
@@ -36,17 +37,27 @@ import (
 //   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
 func BootJobManager(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
 
+	log.Printf("GOMAXPROCS Is: %d\n", runtime.GOMAXPROCS(0))
+	// ---------------------------------------------------------------------------------------------
+	// Recover from any panic and log the error (for safety in booting process)
+	// ---------------------------------------------------------------------------------------------
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println(err)
 		}
 	}()
 
+	// ---------------------------------------------------------------------------------------------
+	// Initialize storage connections (PostgreSQL)
+	// ---------------------------------------------------------------------------------------------
 	sqlDB, redisClient, err := getStorageConnections(cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// Create and register all job handlers as defined in configuration
+	// ---------------------------------------------------------------------------------------------
 	jobHandler := NewJobHandler()
 	for _, handler := range cfg.Handlers {
 		if err := jobHandler.Register(handler.JobName, handler.Func); err != nil {
@@ -54,23 +65,38 @@ func BootJobManager(ctx context.Context, cfg config.GofireConfig) (*JobManager, 
 		}
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// Create all job-related managers (stores, lock manager, schedulers, message broker, etc.)
+	// ---------------------------------------------------------------------------------------------
 	managers, err := createJobManagers(cfg, sqlDB, redisClient, jobHandler)
 	if err != nil {
 		return nil, err
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// Initialize database with lock manager (for schema setup or other bootstrapping logic)
+	// ---------------------------------------------------------------------------------------------
 	if err = db.Init(cfg.PostgresConfig.ConnectionUrl, managers.LockMgr); err != nil {
 		return nil, err
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// If admin user is defined in config, create the dashboard admin account
+	// ---------------------------------------------------------------------------------------------
 	if err = createDashboardAdminIfConfigured(ctx, &cfg, managers.UserStore); err != nil {
 		return nil, err
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// Start dashboard server if authentication is enabled
+	// ---------------------------------------------------------------------------------------------
 	if cfg.DashboardAuthEnabled {
 		runServer(managers, cfg)
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// Create the main JobManager with initialized components
+	// ---------------------------------------------------------------------------------------------
 	jm := NewJobManager(
 		managers.EnqueuedJobStore,
 		managers.CronJobStore,
@@ -81,13 +107,21 @@ func BootJobManager(ctx context.Context, cfg config.GofireConfig) (*JobManager, 
 		cfg.RabbitMQConfig.Queue,
 	)
 
+	// ---------------------------------------------------------------------------------------------
+	// Prepare context and wait group for job reader goroutines
+	// ---------------------------------------------------------------------------------------------
 	jobCtx, cancel := context.WithCancel(ctx)
 	jm.cancel = cancel
+	jm.wg.Add(2) // Add the number of job reader goroutines to wait for
 
-	jm.wg.Add(2)
-
+	// ---------------------------------------------------------------------------------------------
+	// Start goroutines for job readers (e.g., cron reader, enqueued job reader)
+	// ---------------------------------------------------------------------------------------------
 	startJobReaders(jobCtx, jm, managers, cfg)
 
+	// ---------------------------------------------------------------------------------------------
+	// Return the fully initialized JobManager
+	// ---------------------------------------------------------------------------------------------
 	return jm, nil
 }
 
@@ -123,8 +157,14 @@ func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, err
 // startJobReaders launches goroutines for processing enqueued and cron jobs.
 // Uses the JobManager wait group to track job reader lifecycle.
 func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers, cfg config.GofireConfig) {
+
+	// ---------------------------------------------------------------------------------------------
+	// Start Enqueue Scheduler in a separate goroutine
+	// Responsible for processing enqueued jobs periodically.
+	// ---------------------------------------------------------------------------------------------
 	go func() {
 		defer jm.wg.Done()
+
 		go func() {
 			if err := managers.EnqueueScheduler.Start(ctx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
 				log.Printf("EnqueueScheduler failed to start: %v", err)
@@ -132,8 +172,13 @@ func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers,
 		}()
 	}()
 
+	// ---------------------------------------------------------------------------------------------
+	// Start Cron Job Manager in a separate goroutine
+	// Responsible for handling cron-based scheduled jobs.
+	// ---------------------------------------------------------------------------------------------
 	go func() {
 		defer jm.wg.Done()
+
 		go func() {
 			if err := managers.CronJobManager.Start(ctx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
 				log.Printf("CronJobManager failed to start: %v", err)
@@ -141,6 +186,10 @@ func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers,
 		}()
 	}()
 
+	// ---------------------------------------------------------------------------------------------
+	// Start Queue and Storage Sync Worker if queue writer is enabled
+	// Syncs storage with message broker (RabbitMQ).
+	// ---------------------------------------------------------------------------------------------
 	if cfg.UseQueueWriter {
 		go func() {
 			if err := managers.EnqueueScheduler.StartQueueAndStorageSyncWorker(ctx, cfg.RabbitMQConfig.Queue, cfg.UseQueueWriter); err != nil {
