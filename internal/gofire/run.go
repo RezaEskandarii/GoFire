@@ -207,11 +207,11 @@ func setPostgresConnectionPool(sqlDB *sql.DB) {
 
 // createDashboardAdminIfConfigured creates the default dashboard user if credentials are provided
 // and the user does not already exist in the store.
-func createDashboardAdminIfConfigured(ctx context.Context, cfg *config.GofireConfig, Store store.UserStore) error {
+func createDashboardAdminIfConfigured(ctx context.Context, cfg *config.GofireConfig, userStore store.UserStore) error {
 	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
-		if user, err := Store.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
+		if user, err := userStore.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
 
-			if _, err := Store.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword); err != nil {
+			if _, err := userStore.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword); err != nil {
 				return err
 			}
 
