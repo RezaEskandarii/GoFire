@@ -3,8 +3,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"github.com/RezaEskandarii/gofire/internal/constants"
 	"github.com/RezaEskandarii/gofire/internal/lock"
+	"github.com/RezaEskandarii/gofire/pgk/constants"
 	_ "github.com/lib/pq"
 	"log"
 )

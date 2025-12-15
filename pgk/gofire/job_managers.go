@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/RezaEskandarii/gofire/internal/lock"
 	"github.com/RezaEskandarii/gofire/internal/message_broaker"
-	"github.com/RezaEskandarii/gofire/internal/models/config"
 	"github.com/RezaEskandarii/gofire/internal/store"
+	"github.com/RezaEskandarii/gofire/pgk/models/config"
 	"github.com/redis/go-redis/v9"
 )
 

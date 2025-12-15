@@ -3,9 +3,9 @@ package gofire
 import (
 	"database/sql"
 	"github.com/RezaEskandarii/gofire/internal/lock"
-	"github.com/RezaEskandarii/gofire/internal/models/config"
 	"github.com/RezaEskandarii/gofire/internal/store"
 	"github.com/RezaEskandarii/gofire/internal/store/postgres"
+	"github.com/RezaEskandarii/gofire/pgk/models/config"
 	"github.com/redis/go-redis/v9"
 )
 
