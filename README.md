@@ -5,7 +5,7 @@ GoFire is a powerful distributed job scheduling system written in Go. It provide
 ## Features
 
 - **Distributed Job Processing**: Run jobs across multiple instances with distributed locking
-- **Multiple Storage Backends**: Support for both PostgreSQL and Redis
+- **Storage Backends**: Support for PostgreSQL 
 - **Flexible Job Scheduling**:
   - One-time jobs with custom scheduling
   - Cron-based recurring jobs
@@ -21,7 +21,7 @@ GoFire is a powerful distributed job scheduling system written in Go. It provide
 ## Installation
 
 ```bash
-go get github.com/yourusername/gofire
+go get github.com/RezaEskandarii/gofire
 ```
 
 ## Quick Start
@@ -166,15 +166,6 @@ cfg := config.NewGofireConfig("instance-name").
 ```go
 cfg.WithPostgresConfig(config.PostgresConfig{
     ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
-})
-```
-
-#### Redis
-```go
-cfg.WithRedisConfig(config.RedisConfig{
-    Address:  "localhost:6379",
-    Password: "password",
-    DB:       0,
 })
 ```
 
