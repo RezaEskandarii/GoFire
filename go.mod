@@ -1,4 +1,4 @@
-module gofire
+module github.com/RezaEskandarii/gofire
 
 go 1.24.3
 

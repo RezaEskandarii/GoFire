@@ -2,8 +2,8 @@ package store
 
 import (
 	"context"
-	"gofire/internal/models"
-	"gofire/internal/state"
+	"github.com/RezaEskandarii/gofire/internal/models"
+	"github.com/RezaEskandarii/gofire/internal/state"
 	"time"
 )
 

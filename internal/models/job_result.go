@@ -1,7 +1,7 @@
 package models
 
 import (
-	"gofire/internal/state"
+	"github.com/RezaEskandarii/gofire/internal/state"
 	"time"
 )
 

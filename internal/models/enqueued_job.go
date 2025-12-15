@@ -2,7 +2,7 @@ package models
 
 import (
 	"encoding/json"
-	"gofire/internal/state"
+	"github.com/RezaEskandarii/gofire/internal/state"
 	"time"
 )
 

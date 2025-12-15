@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"gofire/internal/models"
+	"github.com/RezaEskandarii/gofire/internal/models"
 )
 
 // UserStore handles user-related database operations.

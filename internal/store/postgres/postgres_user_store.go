@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"gofire/internal/models"
-	"gofire/internal/store"
+	"github.com/RezaEskandarii/gofire/internal/models"
+	"github.com/RezaEskandarii/gofire/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
 

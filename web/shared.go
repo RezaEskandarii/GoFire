@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"gofire/internal/models"
+	"github.com/RezaEskandarii/gofire/internal/models"
 	"net/http"
 	"strconv"
 )

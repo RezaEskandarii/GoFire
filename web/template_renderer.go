@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"gofire/internal/state"
+	"github.com/RezaEskandarii/gofire/internal/state"
 	"html/template"
 	"net/http"
 )
