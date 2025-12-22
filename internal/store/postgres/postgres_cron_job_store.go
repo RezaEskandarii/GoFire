@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/RezaEskandarii/gofire/internal/state"
-	"github.com/RezaEskandarii/gofire/pgk/models"
+	"github.com/RezaEskandarii/gofire/models"
 	"log"
 	"math"
 	"time"

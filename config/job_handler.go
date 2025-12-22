@@ -1,4 +1,4 @@
-package gofire
+package config
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package gofire
+package config
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/RezaEskandarii/gofire/internal/db"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/pgk/models/config"
 	"github.com/RezaEskandarii/gofire/web"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
@@ -35,7 +34,7 @@ import (
 // Returns:
 //   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
 //   - error: any failure that prevents full system setup (e.g., invalid config, failed connection, migration error).
-func BootJobManager(ctx context.Context, cfg config.GofireConfig) (*JobManager, error) {
+func BootJobManager(ctx context.Context, cfg GofireConfig) (*JobManager, error) {
 
 	log.Printf("GOMAXPROCS Is: %d\n", runtime.GOMAXPROCS(0))
 	// ---------------------------------------------------------------------------------------------
@@ -126,7 +125,7 @@ func BootJobManager(ctx context.Context, cfg config.GofireConfig) (*JobManager, 
 }
 
 // runServer initializes and starts the web server for the dashboard interface in a separate goroutine.
-func runServer(managers *JobManagers, cfg config.GofireConfig) {
+func runServer(managers *JobManagers, cfg GofireConfig) {
 	go func() {
 		router := web.NewRouteHandler(managers.EnqueuedJobStore, managers.UserStore, managers.CronJobStore, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
 		if err := router.Serve(); err != nil {
@@ -137,16 +136,16 @@ func runServer(managers *JobManagers, cfg config.GofireConfig) {
 
 // getStorageConnections sets up storage backends (Postgres or Redis) based on the configuration.
 // Returns the initialized SQL DB, Redis client, and an error if the driver is unsupported.
-func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, error) {
+func getStorageConnections(cfg GofireConfig) (*sql.DB, *redis.Client, error) {
 	var sqlDB *sql.DB
 	var redisClient *redis.Client
 
 	switch cfg.StorageDriver {
-	case config.Postgres:
+	case Postgres:
 		sqlDB = setupPostgres(cfg.PostgresConfig.ConnectionUrl)
 		setPostgresConnectionPool(sqlDB)
 
-	case config.Redis:
+	case Redis:
 		panic("redis storage driver not yet supported")
 	default:
 		return nil, nil, fmt.Errorf("unsupported driver: %v", cfg.StorageDriver)
@@ -156,7 +155,7 @@ func getStorageConnections(cfg config.GofireConfig) (*sql.DB, *redis.Client, err
 
 // startJobReaders launches goroutines for processing enqueued and cron jobs.
 // Uses the JobManager wait group to track job reader lifecycle.
-func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers, cfg config.GofireConfig) {
+func startJobReaders(ctx context.Context, jm *JobManager, managers *JobManagers, cfg GofireConfig) {
 
 	// ---------------------------------------------------------------------------------------------
 	// Start Enqueue Scheduler in a separate goroutine
@@ -207,7 +206,7 @@ func setPostgresConnectionPool(sqlDB *sql.DB) {
 
 // createDashboardAdminIfConfigured creates the default dashboard user if credentials are provided
 // and the user does not already exist in the store.
-func createDashboardAdminIfConfigured(ctx context.Context, cfg *config.GofireConfig, userStore store.UserStore) error {
+func createDashboardAdminIfConfigured(ctx context.Context, cfg *GofireConfig, userStore store.UserStore) error {
 	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
 		if user, err := userStore.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
 

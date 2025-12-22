@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"github.com/RezaEskandarii/gofire/pgk/models"
+	"github.com/RezaEskandarii/gofire/models"
 )
 
 // UserStore handles user-related database operations.

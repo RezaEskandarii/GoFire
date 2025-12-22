@@ -3,7 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/RezaEskandarii/gofire/pgk/custom_errors"
+	"github.com/RezaEskandarii/gofire/custom_errors"
 )
 
 type GofireConfig struct {

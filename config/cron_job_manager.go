@@ -1,4 +1,4 @@
-package gofire
+package config
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/RezaEskandarii/gofire/internal/lock"
 	"github.com/RezaEskandarii/gofire/internal/state"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/pgk/models"
+	"github.com/RezaEskandarii/gofire/models"
 	"github.com/RezaEskandarii/gofire/pgk/parser"
 	"log"
 	"sync"

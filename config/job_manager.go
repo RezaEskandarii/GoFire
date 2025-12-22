@@ -1,14 +1,14 @@
-package gofire
+package config
 
 import (
 	"context"
 	json2 "encoding/json"
 	"fmt"
+	"github.com/RezaEskandarii/gofire/constants"
 	"github.com/RezaEskandarii/gofire/internal/lock"
 	"github.com/RezaEskandarii/gofire/internal/message_broaker"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/pgk/constants"
-	"github.com/RezaEskandarii/gofire/pgk/models"
+	"github.com/RezaEskandarii/gofire/models"
 	"github.com/RezaEskandarii/gofire/pgk/parser"
 	"log"
 	"os"

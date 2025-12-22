@@ -1,4 +1,4 @@
-package gofire
+package config
 
 import (
 	"database/sql"
@@ -6,7 +6,6 @@ import (
 	"github.com/RezaEskandarii/gofire/internal/lock"
 	"github.com/RezaEskandarii/gofire/internal/message_broaker"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/pgk/models/config"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -23,7 +22,7 @@ type JobManagers struct {
 // createJobManagers initializes all required job-related services and managers
 // including job stores, distributed lock manager, schedulers, and optional message broker.
 // ---------------------------------------------------------------------------------------------
-func createJobManagers(cfg config.GofireConfig, sqlDB *sql.DB, redisClient *redis.Client, jobHandler *JobHandler) (*JobManagers, error) {
+func createJobManagers(cfg GofireConfig, sqlDB *sql.DB, redisClient *redis.Client, jobHandler *JobHandler) (*JobManagers, error) {
 
 	// ---------------------------------------------------------------------------------------------
 	// Initialize Job Stores (EnqueuedJobStore, CronJobStore, UserStore)

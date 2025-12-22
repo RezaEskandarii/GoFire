@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/pgk/models"
+	"github.com/RezaEskandarii/gofire/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
