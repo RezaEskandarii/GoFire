@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"gofire/internal/models"
-	"gofire/internal/state"
+	"github.com/RezaEskandarii/gofire/internal/state"
+	"github.com/RezaEskandarii/gofire/models"
 	"sync"
 	"time"
 )

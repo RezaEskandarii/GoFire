@@ -33,8 +33,7 @@ package main
 
 import (
   "context"
-  "gofire/internal/gofire"
-  "gofire/internal/models/config"
+  "github.com/RezaEskandarii/gofire/config"
   "log"
   "time"
 )
