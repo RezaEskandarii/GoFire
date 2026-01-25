@@ -1,4 +1,4 @@
-package models
+package types
 
 import (
 	"github.com/RezaEskandarii/gofire/internal/state"

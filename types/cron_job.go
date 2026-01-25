@@ -1,12 +1,11 @@
-package models
+package types
 
 import (
+	"database/sql"
 	"encoding/json"
 	"github.com/RezaEskandarii/gofire/internal/state"
 	"time"
 )
-
-import "database/sql"
 
 type CronJob struct {
 	ID         int64

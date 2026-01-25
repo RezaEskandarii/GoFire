@@ -1,4 +1,4 @@
-package config
+package client
 
 import (
 	"context"
@@ -8,8 +8,9 @@ import (
 	"github.com/RezaEskandarii/gofire/internal/lock"
 	"github.com/RezaEskandarii/gofire/internal/message_broaker"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/models"
 	"github.com/RezaEskandarii/gofire/pgk/parser"
+	"github.com/RezaEskandarii/gofire/types"
+	"github.com/RezaEskandarii/gofire/types/config"
 	"log"
 	"os"
 	"os/signal"
@@ -22,15 +23,15 @@ type JobManager struct {
 	EnqueuedJobStore store.EnqueuedJobStore
 	CronJobStore     store.CronJobStore
 	MBroker          message_broaker.MessageBroker
-	JobHandler       *JobHandler
+	JobHandler       *config.JobHandler
 	lockManager      lock.DistributedLockManager
-	cancel           context.CancelFunc
-	wg               sync.WaitGroup
+	Cancel           context.CancelFunc
+	Wg               sync.WaitGroup
 	writeJobsToQueue bool
 	jobQueueName     string
 }
 
-func NewJobManager(enqueuedStore store.EnqueuedJobStore, cronStore store.CronJobStore, jobHandler *JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManager {
+func NewJobManager(enqueuedStore store.EnqueuedJobStore, cronStore store.CronJobStore, jobHandler *config.JobHandler, lockManager lock.DistributedLockManager, messageBroker message_broaker.MessageBroker, writeJobsToQueue bool, jobQueueName string) *JobManager {
 	return &JobManager{
 		EnqueuedJobStore: enqueuedStore,
 		lockManager:      lockManager,
@@ -50,7 +51,7 @@ func (jm *JobManager) Enqueue(ctx context.Context, jobName string, enqueueAt tim
 		return jm.EnqueuedJobStore.Insert(ctx, jobName, enqueueAt, args...)
 	}
 
-	job := models.Job{
+	job := types.Job{
 		Name:        jobName,
 		Args:        args,
 		ScheduledAt: enqueueAt,
@@ -74,7 +75,7 @@ func (jm *JobManager) RemoveEnqueue(ctx context.Context, jobID int64) error {
 }
 
 // FindEnqueue returns the details of a queued job by its ID.
-func (jm *JobManager) FindEnqueue(ctx context.Context, jobID int64) (*models.EnqueuedJob, error) {
+func (jm *JobManager) FindEnqueue(ctx context.Context, jobID int64) (*types.EnqueuedJob, error) {
 	return jm.EnqueuedJobStore.FindByID(ctx, jobID)
 }
 
@@ -186,12 +187,12 @@ func (jm *JobManager) GracefulExit() {
 	log.Println("Gofire Shutting down gracefully...")
 
 	// Cancel background job processors
-	if jm.cancel != nil {
-		jm.cancel()
+	if jm.Cancel != nil {
+		jm.Cancel()
 	}
 
 	// Wait for all background job processors to finish
-	jm.wg.Wait()
+	jm.Wg.Wait()
 
 	if err := jm.CronJobStore.Close(); err != nil {
 		log.Println(err.Error())

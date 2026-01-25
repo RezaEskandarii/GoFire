@@ -1,4 +1,4 @@
-package config
+package client
 
 import (
 	"context"
@@ -7,8 +7,9 @@ import (
 	"github.com/RezaEskandarii/gofire/internal/lock"
 	"github.com/RezaEskandarii/gofire/internal/state"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/models"
 	"github.com/RezaEskandarii/gofire/pgk/parser"
+	"github.com/RezaEskandarii/gofire/types"
+	"github.com/RezaEskandarii/gofire/types/config"
 	"log"
 	"sync"
 	"time"
@@ -16,27 +17,27 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-type cronJobManager struct {
+type CronJobManager struct {
 	jobStore   store.CronJobStore
 	lock       lock.DistributedLockManager
-	jobHandler *JobHandler
+	jobHandler *config.JobHandler
 	instance   string
-	jobResults chan models.JobResult
+	jobResults chan types.JobResult
 }
 
-func newCronJobManager(cronJobStore store.CronJobStore, lock lock.DistributedLockManager, jobHandler *JobHandler, instance string) cronJobManager {
-	scheduler := cronJobManager{
+func NewCronJobManager(cronJobStore store.CronJobStore, lock lock.DistributedLockManager, jobHandler *config.JobHandler, instance string) CronJobManager {
+	scheduler := CronJobManager{
 		jobStore:   cronJobStore,
 		lock:       lock,
 		jobHandler: jobHandler,
 		instance:   instance,
-		jobResults: make(chan models.JobResult, 1000),
+		jobResults: make(chan types.JobResult, 1000),
 	}
 	go scheduler.startResultProcessor(context.Background())
 	return scheduler
 }
 
-func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCount, batchSize int) error {
+func (cm *CronJobManager) Start(ctx context.Context, intervalSeconds, workerCount, batchSize int) error {
 
 	sem := semaphore.NewWeighted(int64(workerCount))
 	var wg sync.WaitGroup
@@ -44,7 +45,7 @@ func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCoun
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("cronJobManager stopped")
+			log.Println("CronJobManager stopped")
 			wg.Wait()
 			return ctx.Err()
 		default:
@@ -54,14 +55,14 @@ func (cm *cronJobManager) Start(ctx context.Context, intervalSeconds, workerCoun
 	}
 }
 
-func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
+func (cm *CronJobManager) processCronJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
 
 	log.Println("start to process cron jobs")
 	page := 1
 	for {
 		result, err := cm.jobStore.FetchDueCronJobs(ctx, page, batchSize)
 		if err != nil {
-			log.Printf("cronJobManager: failed to fetch jobs: %v", err)
+			log.Printf("CronJobManager: failed to fetch jobs: %v", err)
 			return
 		}
 
@@ -72,12 +73,12 @@ func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.We
 				continue
 			}
 			if err := sem.Acquire(ctx, 1); err != nil {
-				log.Println("cronJobManager: semaphore error:", err)
+				log.Println("CronJobManager: semaphore error:", err)
 				continue
 			}
 			wg.Add(1)
 
-			go func(job models.CronJob) {
+			go func(job types.CronJob) {
 				defer sem.Release(1)
 				defer wg.Done()
 				cm.executeJob(ctx, job)
@@ -91,12 +92,12 @@ func (cm *cronJobManager) processCronJobs(ctx context.Context, sem *semaphore.We
 	}
 }
 
-func (cm *cronJobManager) executeJob(ctx context.Context, job models.CronJob) {
+func (cm *CronJobManager) executeJob(ctx context.Context, job types.CronJob) {
 	now := time.Now()
 	nextRun := parser.CalculateNextRun(job.Expression, now)
 
 	if !cm.jobHandler.Exists(job.Name) {
-		cm.jobResults <- models.JobResult{
+		cm.jobResults <- types.JobResult{
 			JobID:   job.ID,
 			Err:     fmt.Errorf("handler not found"),
 			Status:  state.StatusFailed,
@@ -108,7 +109,7 @@ func (cm *cronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 
 	var args []interface{}
 	if err := json.Unmarshal(job.Payload, &args); err != nil {
-		cm.jobResults <- models.JobResult{
+		cm.jobResults <- types.JobResult{
 			JobID:   job.ID,
 			Err:     fmt.Errorf("invalid payload: %v", err),
 			Status:  state.StatusFailed,
@@ -121,7 +122,7 @@ func (cm *cronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 	err := cm.jobHandler.Execute(job.Name, args...)
 	status := cm.errorToJobStatus(err)
 
-	cm.jobResults <- models.JobResult{
+	cm.jobResults <- types.JobResult{
 		JobID:   job.ID,
 		Err:     err,
 		Status:  status,
@@ -130,7 +131,7 @@ func (cm *cronJobManager) executeJob(ctx context.Context, job models.CronJob) {
 	}
 }
 
-func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
+func (cm *CronJobManager) startResultProcessor(ctx context.Context) {
 	go func() {
 		for {
 			select {
@@ -151,7 +152,7 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 						}
 					}
 				default:
-					log.Printf("cronJobManager: unknown status: %sm", res.Status)
+					log.Printf("CronJobManager: unknown status: %sm", res.Status)
 				}
 				if err := cm.jobStore.UpdateJobRunTimes(ctx, res.JobID, res.RanAt, res.NextRun); err != nil {
 					log.Printf("UpdateJobRunTimes error: %s", err.Error())
@@ -161,7 +162,7 @@ func (cm *cronJobManager) startResultProcessor(ctx context.Context) {
 	}()
 }
 
-func (cm *cronJobManager) errorToJobStatus(err error) state.JobStatus {
+func (cm *CronJobManager) errorToJobStatus(err error) state.JobStatus {
 	if err != nil {
 		return state.StatusFailed
 	}

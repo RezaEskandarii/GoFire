@@ -3,7 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/RezaEskandarii/gofire/custom_errors"
+	errors2 "github.com/RezaEskandarii/gofire/errors"
 )
 
 type GofireConfig struct {
@@ -31,7 +31,7 @@ type GofireConfig struct {
 	// If true, jobs are enqueued in RabbitMQ before being processed and batch-inserted into the database.
 	UseQueueWriter bool
 
-	MQDriver MQDriver
+	MQDriver MessageQueueDriver
 
 	// RabbitMQConfig holds the configuration settings for connecting to RabbitMQ,
 	// such as connection URL, queue names, and other relevant parameters.
@@ -51,7 +51,7 @@ type PostgresConfig struct {
 
 // RedisConfig holds Redis connection settings.
 type RedisConfig struct {
-	Address  string // Redis server address (e.g., "localhost:6379")
+	Address  string // Redis client address (e.g., "localhost:6379")
 	Password string // Password for Redis authentication (optional)
 	DB       int    // Redis database number to use (e.g., 0 by default)
 }
@@ -79,7 +79,7 @@ func NewGofireConfig(instance string, opts ...Option) (*GofireConfig, error) {
 		ScheduleInterval: DefaultCronJobInterval,
 		RabbitMQConfig:   &RabbitMQConfig{},
 	}
-	validationErrs := &custom_errors.ValidationError{}
+	validationErrs := &errors2.ValidationError{}
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {
 			validationErrs.Add(err)
@@ -95,7 +95,7 @@ func NewGofireConfig(instance string, opts ...Option) (*GofireConfig, error) {
 func WithAdminDashboardConfig(username, password, secretKey string, port uint) Option {
 	return func(c *GofireConfig) error {
 		if username == "" || password == "" || secretKey == "" || port == 0 {
-			return errors.New("admin dashboard config: username, password, secretKey, and port are required")
+			return errors.New("admin dashboard client: username, password, secretKey, and port are required")
 		}
 
 		c.DashboardAuthEnabled = true
@@ -110,10 +110,10 @@ func WithAdminDashboardConfig(username, password, secretKey string, port uint) O
 func WithPostgresConfig(pg PostgresConfig) Option {
 	return func(c *GofireConfig) error {
 		if c.StorageDriver != Postgres {
-			return fmt.Errorf("cannot set Postgres config when driver is %s", c.StorageDriver.String())
+			return fmt.Errorf("cannot set Postgres client when driver is %s", c.StorageDriver.String())
 		}
 		if pg.ConnectionUrl == "" {
-			return errors.New("postgres config: connection URL is required")
+			return errors.New("postgres client: connection URL is required")
 		}
 		c.StorageDriver = Postgres
 		c.PostgresConfig = pg
@@ -170,6 +170,15 @@ func (c *GofireConfig) RegisterHandler(handler MethodHandler) error {
 	return nil
 }
 
+func (c *GofireConfig) RegisterHandlers(handlers []MethodHandler) error {
+	for _, h := range handlers {
+		if err := c.RegisterHandler(h); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // UseRabbitMQueueWriter enables or disables writing jobs first to RabbitMQ queue.
 // When enabled (writeToQueue = true), jobs are initially pushed to RabbitMQ,
 // and later consumed in batches for bulk writing into the database.
@@ -188,7 +197,7 @@ func UseRabbitMQueueWriter(writeToQueue bool) Option {
 func WithRabbitMQConfig(cfg RabbitMQConfig) Option {
 	return func(c *GofireConfig) error {
 		if cfg.URL == "" {
-			return errors.New("rabbitmq config: URL is required")
+			return errors.New("rabbitmq client: URL is required")
 		}
 		c.RabbitMQConfig = &cfg
 		c.UseQueueWriter = true

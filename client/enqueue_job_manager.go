@@ -1,4 +1,4 @@
-package config
+package client
 
 import (
 	"context"
@@ -9,36 +9,37 @@ import (
 	"github.com/RezaEskandarii/gofire/internal/message_broaker"
 	"github.com/RezaEskandarii/gofire/internal/state"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
+	"github.com/RezaEskandarii/gofire/types/config"
 	"golang.org/x/sync/semaphore"
 	"log"
 	"sync"
 	"time"
 )
 
-type enqueueJobsManager struct {
+type EnqueueJobsManager struct {
 	store      store.EnqueuedJobStore
 	instance   string
 	lock       lock.DistributedLockManager
-	jobHandler *JobHandler
-	jobResults chan models.JobResult
+	jobHandler *config.JobHandler
+	jobResults chan types.JobResult
 	mBroker    message_broaker.MessageBroker
 }
 
-func newEnqueueScheduler(jobStore store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler *JobHandler, messageBroker message_broaker.MessageBroker, instance string) enqueueJobsManager {
-	scheduler := enqueueJobsManager{
+func NewEnqueueScheduler(jobStore store.EnqueuedJobStore, lock lock.DistributedLockManager, jobHandler *config.JobHandler, messageBroker message_broaker.MessageBroker, instance string) EnqueueJobsManager {
+	scheduler := EnqueueJobsManager{
 		store:      jobStore,
 		instance:   instance,
 		lock:       lock,
 		jobHandler: jobHandler,
-		jobResults: make(chan models.JobResult, 1000),
+		jobResults: make(chan types.JobResult, 1000),
 		mBroker:    messageBroker,
 	}
 	go scheduler.MarkRetryFailedJobs(context.Background())
 	return scheduler
 }
 
-func (em *enqueueJobsManager) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args ...any) (int64, error) {
+func (em *EnqueueJobsManager) Enqueue(ctx context.Context, name string, scheduledAt time.Time, args ...any) (int64, error) {
 	if jobID, err := em.store.Insert(ctx, name, scheduledAt, args...); err != nil {
 		log.Println(err.Error())
 		return 0, err
@@ -47,7 +48,7 @@ func (em *enqueueJobsManager) Enqueue(ctx context.Context, name string, schedule
 	}
 }
 
-func (em *enqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
+func (em *EnqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
 	const retryLock = constants.RetryLock
 
 	ticker := time.NewTicker(5 * time.Second)
@@ -71,7 +72,7 @@ func (em *enqueueJobsManager) MarkRetryFailedJobs(ctx context.Context) {
 	}
 }
 
-func (em *enqueueJobsManager) Start(ctx context.Context, interval, workerCount, batchSize int) error {
+func (em *EnqueueJobsManager) Start(ctx context.Context, interval, workerCount, batchSize int) error {
 
 	em.startResultProcessor(ctx)
 
@@ -94,7 +95,7 @@ func (em *enqueueJobsManager) Start(ctx context.Context, interval, workerCount, 
 	}
 }
 
-func (em *enqueueJobsManager) ExecuteJobManually(ctx context.Context, jobID int64) error {
+func (em *EnqueueJobsManager) ExecuteJobManually(ctx context.Context, jobID int64) error {
 	job, err := em.store.FindByID(ctx, jobID)
 	if err != nil {
 		return fmt.Errorf("job not found: %w", err)
@@ -113,7 +114,7 @@ func (em *enqueueJobsManager) ExecuteJobManually(ctx context.Context, jobID int6
 	err = em.jobHandler.Execute(job.Name, args...)
 	status := em.errorToJobStatus(err)
 
-	em.jobResults <- models.JobResult{
+	em.jobResults <- types.JobResult{
 		JobID:       job.ID,
 		Err:         err,
 		Attempts:    job.Attempts + 1,
@@ -124,7 +125,7 @@ func (em *enqueueJobsManager) ExecuteJobManually(ctx context.Context, jobID int6
 	return nil
 }
 
-func (em *enqueueJobsManager) startResultProcessor(ctx context.Context) {
+func (em *EnqueueJobsManager) startResultProcessor(ctx context.Context) {
 	go func() {
 		for {
 			select {
@@ -152,7 +153,7 @@ func (em *enqueueJobsManager) startResultProcessor(ctx context.Context) {
 	}()
 }
 
-func (em *enqueueJobsManager) processDueJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
+func (em *EnqueueJobsManager) processDueJobs(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, batchSize int) {
 	log.Println("start to process enqueued jobs")
 	now := time.Now()
 	statuses := []state.JobStatus{state.StatusQueued, state.StatusRetrying}
@@ -180,7 +181,7 @@ func (em *enqueueJobsManager) processDueJobs(ctx context.Context, sem *semaphore
 	}
 }
 
-func (em *enqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, job models.EnqueuedJob) {
+func (em *EnqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weighted, wg *sync.WaitGroup, job types.EnqueuedJob) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("panic in job %d: %v", job.ID, r)
@@ -191,7 +192,7 @@ func (em *enqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weig
 
 	ok := em.jobHandler.Exists(job.Name)
 	if !ok {
-		em.jobResults <- models.JobResult{
+		em.jobResults <- types.JobResult{
 			JobID:       job.ID,
 			Err:         fmt.Errorf("handler not found"),
 			Attempts:    job.Attempts + 1,
@@ -204,7 +205,7 @@ func (em *enqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weig
 	var args []interface{}
 	if err := json.Unmarshal(job.Payload, &args); err != nil {
 		log.Printf("invalid payload for job %d: %v", job.ID, err)
-		em.jobResults <- models.JobResult{
+		em.jobResults <- types.JobResult{
 			JobID:       job.ID,
 			Err:         fmt.Errorf("invalid payload"),
 			Attempts:    job.Attempts + 1,
@@ -217,7 +218,7 @@ func (em *enqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weig
 	err := em.jobHandler.Execute(job.Name, args...)
 
 	status := em.errorToJobStatus(err)
-	em.jobResults <- models.JobResult{
+	em.jobResults <- types.JobResult{
 		JobID:       job.ID,
 		Err:         err,
 		Attempts:    job.Attempts + 1,
@@ -226,14 +227,14 @@ func (em *enqueueJobsManager) handleJob(ctx context.Context, sem *semaphore.Weig
 	}
 }
 
-func (*enqueueJobsManager) errorToJobStatus(err error) state.JobStatus {
+func (*EnqueueJobsManager) errorToJobStatus(err error) state.JobStatus {
 	if err != nil {
 		return state.StatusFailed
 	}
 	return state.StatusSucceeded
 }
 
-func (em *enqueueJobsManager) StartQueueAndStorageSyncWorker(ctx context.Context, queue string, useQueue bool) error {
+func (em *EnqueueJobsManager) StartQueueAndStorageSyncWorker(ctx context.Context, queue string, useQueue bool) error {
 	if !useQueue {
 		return nil
 	}
@@ -250,7 +251,7 @@ func (em *enqueueJobsManager) StartQueueAndStorageSyncWorker(ctx context.Context
 			return
 		}
 
-		var jobsBatch []models.Job
+		var jobsBatch []types.Job
 
 		flushBatch := func() {
 			if len(jobsBatch) == 0 {
@@ -278,7 +279,7 @@ func (em *enqueueJobsManager) StartQueueAndStorageSyncWorker(ctx context.Context
 					return
 				}
 
-				var job models.Job
+				var job types.Job
 				if err := json.Unmarshal(msg, &job); err != nil {
 					log.Printf("failed to unmarshal job: %v", err)
 					continue

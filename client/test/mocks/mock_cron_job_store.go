@@ -5,20 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/RezaEskandarii/gofire/internal/state"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"sync"
 	"time"
 )
 
 type MockCronJobStore struct {
 	mu     sync.Mutex
-	jobs   map[int64]*models.CronJob
+	jobs   map[int64]*types.CronJob
 	nextID int64
 }
 
 func NewMockCronJobStore() *MockCronJobStore {
 	return &MockCronJobStore{
-		jobs: make(map[int64]*models.CronJob),
+		jobs: make(map[int64]*types.CronJob),
 	}
 }
 
@@ -35,7 +35,7 @@ func (m *MockCronJobStore) AddOrUpdate(ctx context.Context, jobName string, next
 	}
 
 	m.nextID++
-	job := &models.CronJob{
+	job := &types.CronJob{
 		ID:         m.nextID,
 		Name:       jobName,
 		NextRunAt:  nextRunAt,
@@ -46,11 +46,11 @@ func (m *MockCronJobStore) AddOrUpdate(ctx context.Context, jobName string, next
 	return job.ID, nil
 }
 
-func (m *MockCronJobStore) FetchDueCronJobs(ctx context.Context, page, pageSize int) (*models.PaginationResult[models.CronJob], error) {
+func (m *MockCronJobStore) FetchDueCronJobs(ctx context.Context, page, pageSize int) (*types.PaginationResult[types.CronJob], error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var due []models.CronJob
+	var due []types.CronJob
 	now := time.Now()
 
 	for _, job := range m.jobs {
@@ -68,7 +68,7 @@ func (m *MockCronJobStore) FetchDueCronJobs(ctx context.Context, page, pageSize 
 		end = len(due)
 	}
 
-	return &models.PaginationResult[models.CronJob]{
+	return &types.PaginationResult[types.CronJob]{
 		Items:      due[start:end],
 		TotalItems: len(due),
 		Page:       page,
@@ -102,11 +102,11 @@ func (m *MockCronJobStore) UnLockJob(ctx context.Context, jobID int64) (bool, er
 	return true, nil
 }
 
-func (m *MockCronJobStore) GetAll(ctx context.Context, page, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
+func (m *MockCronJobStore) GetAll(ctx context.Context, page, pageSize int, status state.JobStatus) (*types.PaginationResult[types.CronJob], error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var list []models.CronJob
+	var list []types.CronJob
 	for _, job := range m.jobs {
 		if job.Status == status {
 			list = append(list, *job)
@@ -122,7 +122,7 @@ func (m *MockCronJobStore) GetAll(ctx context.Context, page, pageSize int, statu
 		end = len(list)
 	}
 
-	return &models.PaginationResult[models.CronJob]{
+	return &types.PaginationResult[types.CronJob]{
 		Items:      list[start:end],
 		TotalItems: len(list),
 		Page:       page,

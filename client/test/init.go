@@ -31,7 +31,7 @@ func init() {
 		config.WithPostgresConfig(config.PostgresConfig{ConnectionUrl: postgresURL}),
 	)
 
-	//cfg = cfg.WithRabbitMQConfig(config.RabbitMQConfig{
+	//cfg = cfg.WithRabbitMQConfig(client.RabbitMQConfig{
 	//	URL:         "amqp://guest:guest@localhost:5672/",
 	//	Exchange:    "gofire_exchange",
 	//	Queue:       "gofire_jobs",
