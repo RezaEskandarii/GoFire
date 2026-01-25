@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"net/http"
 	"strconv"
 )
@@ -11,7 +11,7 @@ type DataMap struct {
 	Data map[string]interface{}
 }
 
-func NewPaginatedDataMap[T any](data models.PaginationResult[T]) DataMap {
+func NewPaginatedDataMap[T any](data types.PaginationResult[T]) DataMap {
 	return DataMap{
 		Data: map[string]interface{}{
 			"Page":            data.Page,

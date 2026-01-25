@@ -3,13 +3,13 @@ package store
 import (
 	"context"
 	"github.com/RezaEskandarii/gofire/internal/state"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"time"
 )
 
 type EnqueuedJobStore interface {
 	// FindByID retrieves an enqueued job by its unique ID.
-	FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error)
+	FindByID(ctx context.Context, id int64) (*types.EnqueuedJob, error)
 
 	// RemoveByID deletes the job identified by jobID from the queue.
 	RemoveByID(ctx context.Context, jobID int64) error
@@ -19,7 +19,7 @@ type EnqueuedJobStore interface {
 	Insert(ctx context.Context, jobName string, enqueueAt time.Time, args ...any) (int64, error)
 
 	// FetchDueJobs retrieves a paginated list of jobs that are due to run, filtered by their statuses and scheduled time.
-	FetchDueJobs(ctx context.Context, page int, pageSize int, statuses []state.JobStatus, scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error)
+	FetchDueJobs(ctx context.Context, page int, pageSize int, statuses []state.JobStatus, scheduledBefore *time.Time) (*types.PaginationResult[types.EnqueuedJob], error)
 
 	// LockJob attempts to lock the job for processing by the given worker identified by lockedBy.
 	// Returns true if the lock was acquired successfully.
@@ -43,7 +43,7 @@ type EnqueuedJobStore interface {
 	// MarkRetryFailedJobs flags jobs that have failed but are eligible to be retried.
 	MarkRetryFailedJobs(ctx context.Context) error
 
-	BulkInsert(ctx context.Context, batch []models.Job) error
+	BulkInsert(ctx context.Context, batch []types.Job) error
 
 	// Close closes the database
 	Close() error

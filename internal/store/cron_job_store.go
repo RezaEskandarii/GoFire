@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 	"github.com/RezaEskandarii/gofire/internal/state"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"time"
 )
 
@@ -14,13 +14,13 @@ type CronJobStore interface {
 	AddOrUpdate(ctx context.Context, jobName string, scheduledAt time.Time, expression string, args ...any) (int64, error)
 
 	// FetchDueCronJobs fetches active cron jobs whose NextRunAt <= now, limited by 'limit'.
-	FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error)
+	FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*types.PaginationResult[types.CronJob], error)
 
 	LockJob(ctx context.Context, jobID int64, lockedBy string) (bool, error)
 
 	UnLockJob(ctx context.Context, jobID int64) (bool, error)
 
-	GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error)
+	GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*types.PaginationResult[types.CronJob], error)
 
 	CountAllJobsGroupedByStatus(ctx context.Context) (map[state.JobStatus]int, error)
 

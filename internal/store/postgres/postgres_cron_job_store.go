@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/RezaEskandarii/gofire/internal/state"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"log"
 	"math"
 	"time"
@@ -48,7 +48,7 @@ func (r *PostgresCronJobStore) AddOrUpdate(ctx context.Context, jobName string, 
 	return jobID, nil
 }
 
-func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*models.PaginationResult[models.CronJob], error) {
+func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, pageSize int) (*types.PaginationResult[types.CronJob], error) {
 	if page < 1 {
 		page = 1
 	}
@@ -99,9 +99,9 @@ func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, p
 	}
 	defer rows.Close()
 
-	var jobs []models.CronJob
+	var jobs []types.CronJob
 	for rows.Next() {
-		var job models.CronJob
+		var job types.CronJob
 		err := rows.Scan(
 			&job.ID, &job.Name, &job.Payload, &job.Status, &job.LastError,
 			&job.LockedBy, &job.LockedAt, &job.CreatedAt,
@@ -116,7 +116,7 @@ func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, p
 
 	// Pagination metadata
 	totalPages := int(math.Ceil(float64(totalItems) / float64(pageSize)))
-	result := &models.PaginationResult[models.CronJob]{
+	result := &types.PaginationResult[types.CronJob]{
 		Items:           jobs,
 		TotalItems:      totalItems,
 		Page:            page,
@@ -129,7 +129,7 @@ func (r *PostgresCronJobStore) FetchDueCronJobs(ctx context.Context, page int, p
 	return result, nil
 }
 
-func (r *PostgresCronJobStore) GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*models.PaginationResult[models.CronJob], error) {
+func (r *PostgresCronJobStore) GetAll(ctx context.Context, page int, pageSize int, status state.JobStatus) (*types.PaginationResult[types.CronJob], error) {
 	if page < 1 {
 		page = 1
 	}
@@ -171,9 +171,9 @@ func (r *PostgresCronJobStore) GetAll(ctx context.Context, page int, pageSize in
 	}
 	defer rows.Close()
 
-	var jobs []models.CronJob
+	var jobs []types.CronJob
 	for rows.Next() {
-		var job models.CronJob
+		var job types.CronJob
 		err := rows.Scan(
 			&job.ID, &job.Name, &job.Payload, &job.Status, &job.LastError,
 			&job.LockedBy, &job.LockedAt, &job.CreatedAt,
@@ -187,7 +187,7 @@ func (r *PostgresCronJobStore) GetAll(ctx context.Context, page int, pageSize in
 	}
 
 	totalPages := int(math.Ceil(float64(totalItems) / float64(pageSize)))
-	result := &models.PaginationResult[models.CronJob]{
+	result := &types.PaginationResult[types.CronJob]{
 		Items:           jobs,
 		TotalItems:      totalItems,
 		Page:            page,
@@ -269,8 +269,8 @@ func (r *PostgresCronJobStore) LockJob(ctx context.Context, jobID int64, lockedB
 		SET locked_at = NOW(), 
 		    locked_by = $1,
 		    status = $2
-		WHERE id = $3 AND (status = $4 OR status = $5 OR status = $6)
-	`, lockedBy, state.StatusProcessing, jobID, state.StatusQueued, state.StatusRetrying, state.StatusSucceeded)
+		WHERE id = $3 AND (status = $4 OR status = $5 OR status = $6  OR status = $7)
+	`, lockedBy, state.StatusProcessing, jobID, state.StatusQueued, state.StatusRetrying, state.StatusSucceeded, state.StatusFailed)
 	if err != nil {
 		return false, err
 	}

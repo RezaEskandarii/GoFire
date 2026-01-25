@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/RezaEskandarii/gofire/constants"
 	"github.com/RezaEskandarii/gofire/internal/state"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"math"
 	"strings"
 	"time"
@@ -54,7 +54,7 @@ func (r *PostgresEnqueuedJobStore) Insert(ctx context.Context, jobName string, e
 
 }
 
-func (r *PostgresEnqueuedJobStore) FindByID(ctx context.Context, id int64) (*models.EnqueuedJob, error) {
+func (r *PostgresEnqueuedJobStore) FindByID(ctx context.Context, id int64) (*types.EnqueuedJob, error) {
 	query := `
 		SELECT id,
 		       name,
@@ -105,7 +105,7 @@ func (r *PostgresEnqueuedJobStore) FetchDueJobs(
 	page int,
 	pageSize int,
 	statuses []state.JobStatus,
-	scheduledBefore *time.Time) (*models.PaginationResult[models.EnqueuedJob], error) {
+	scheduledBefore *time.Time) (*types.PaginationResult[types.EnqueuedJob], error) {
 
 	if page < 1 {
 		page = 1
@@ -158,7 +158,7 @@ func (r *PostgresEnqueuedJobStore) FetchDueJobs(
 	}
 	defer rows.Close()
 
-	var jobs []models.EnqueuedJob
+	var jobs []types.EnqueuedJob
 	for rows.Next() {
 		job, err := r.mapSqlRowsToJob(rows)
 		if err != nil {
@@ -168,7 +168,7 @@ func (r *PostgresEnqueuedJobStore) FetchDueJobs(
 	}
 
 	totalPages := int(math.Ceil(float64(totalItems) / float64(pageSize)))
-	result := &models.PaginationResult[models.EnqueuedJob]{
+	result := &types.PaginationResult[types.EnqueuedJob]{
 		Items:           jobs,
 		TotalItems:      totalItems,
 		Page:            page,
@@ -303,7 +303,7 @@ func (r *PostgresEnqueuedJobStore) CountAllJobsGroupedByStatus(ctx context.Conte
 	return result, nil
 }
 
-func (r *PostgresEnqueuedJobStore) BulkInsert(ctx context.Context, batch []models.Job) error {
+func (r *PostgresEnqueuedJobStore) BulkInsert(ctx context.Context, batch []types.Job) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -355,8 +355,8 @@ func (r *PostgresEnqueuedJobStore) Close() error {
 	return r.db.Close()
 }
 
-func (r *PostgresEnqueuedJobStore) mapSqlRowsToJob(rows *sql.Rows) (*models.EnqueuedJob, error) {
-	var job models.EnqueuedJob
+func (r *PostgresEnqueuedJobStore) mapSqlRowsToJob(rows *sql.Rows) (*types.EnqueuedJob, error) {
+	var job types.EnqueuedJob
 	if err := rows.Scan(
 		&job.ID,
 		&job.Name,

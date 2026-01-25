@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/RezaEskandarii/gofire/internal/store"
-	"github.com/RezaEskandarii/gofire/models"
+	"github.com/RezaEskandarii/gofire/types"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -33,9 +33,9 @@ func (r *postgresUserStore) Create(ctx context.Context, username, password strin
 	return id, nil
 }
 
-func (r *postgresUserStore) Find(ctx context.Context, username, password string) (*models.User, error) {
+func (r *postgresUserStore) Find(ctx context.Context, username, password string) (*types.User, error) {
 	query := `SELECT id, username, password FROM gofire_schema.users WHERE username = $1`
-	user := &models.User{}
+	user := &types.User{}
 	err := r.db.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.Username, &user.Password)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -50,9 +50,9 @@ func (r *postgresUserStore) Find(ctx context.Context, username, password string)
 	user.Password = ""
 	return user, nil
 }
-func (r *postgresUserStore) FindByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *postgresUserStore) FindByUsername(ctx context.Context, username string) (*types.User, error) {
 	query := `SELECT id, username FROM gofire_schema.users WHERE username = $1;`
-	user := &models.User{}
+	user := &types.User{}
 	err := r.db.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.Username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
