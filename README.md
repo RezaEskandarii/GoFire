@@ -29,63 +29,131 @@ go get github.com/RezaEskandarii/gofire
 Here's a basic example of how to use GoFire:
 
 ```go
+
 package main
 
 import (
   "context"
-  "github.com/RezaEskandarii/gofire/config"
+  "crypto/rand"
+  "fmt"
+  "github.com/RezaEskandarii/gofire/gofire"
+  "github.com/RezaEskandarii/gofire/jobmanager"
+  "github.com/RezaEskandarii/gofire/types/config"
   "log"
+  "math/big"
   "time"
 )
 
+const (
+  SendSMSJob                = "SendSMSJob"
+  DailyEmailNotificationJob = "DailyEmailNotificationJob"
+)
+
 func main() {
-  // Configure GoFire
-  cfg, err := config.NewGofireConfig("instance-name",
-    config.WithEnqueueInterval(60),  // Enqueue check interval in seconds
-    config.WithScheduleInterval(60), // Scheduler check interval in seconds
-    config.WithWorkerCount(15),      // Number of concurrent workers
-    config.WithBatchSize(500),       // Batch size for job processing
-    config.WithPostgresConfig(config.PostgresConfig{
-      ConnectionUrl: "postgres://user:pass@localhost:5432/dbname",
-    }),
+  // Recover from panics
+  defer func() {
+    if r := recover(); r != nil {
+      fmt.Printf("panic: %v\n", r)
+    }
+  }()
+
+  ctx := context.Background()
+
+  // 1. Configure Database
+  dbConfig := config.PostgresConfig{
+    ConnectionUrl: "host=127.0.0.1 port=5432 user=postgres password=123456 dbname=gofire sslmode=disable",
+  }
+
+  // 2. Configure GoFire
+  cfg, err := config.NewGofireConfig("basket-microservice",
+    config.WithEnqueueInterval(5),
+    config.WithScheduleInterval(5),
+    config.WithWorkerCount(1),
+    config.WithBatchSize(3000),
+    config.WithPostgresConfig(dbConfig),
     config.WithAdminDashboardConfig("admin", "password", "secret-key", 8080),
   )
+  fatalOnError(err, "Failed to create GoFire config")
 
-  if err != nil {
+  // 3. Register Job Handlers
+  handlers := []config.MethodHandler{
+    {
+      JobName: SendSMSJob,
+      Func: func(args ...any) error {
+        to := args[0].(string)
+        message := args[1].(string)
+        return sendSms(to, message)
+      },
+    },
+    {
+      JobName: DailyEmailNotificationJob,
+      Func: func(args ...any) error {
+        address := args[0].(string)
+        body := args[1].(string)
+        return sendEmail(address, body)
+      },
+    },
+  }
+
+  // Register all handlers
+  if err := cfg.RegisterHandlers(handlers); err != nil {
     log.Fatal(err)
   }
 
-  // Register job handlers
-  _ = cfg.RegisterHandler(config.MethodHandler{
-    JobName: "SendSMS",
-    Func: func(args ...any) error {
-      to := args[0].(string)
-      message := args[1].(string)
-      return sendSms(to, message)
-    },
-  })
-
-  _ = cfg.RegisterHandler(config.MethodHandler{
-    JobName: "DailyEmailNotificationJob",
-    Func: func(args ...any) error {
-      address := args[0].(string)
-      body := args[1].(string)
-      return sendEmail(address, body)
-    },
-  })
-
-  // Initialize GoFire
-  jobManager, err := gofire.BootJobManager(context.Background(), *cfg)
-  if err != nil {
+  // 4. Add Server
+  if err := gofire.AddServer(ctx, cfg); err != nil {
     log.Fatal(err)
   }
-  defer jobManager.GracefulExit() // Graceful shutdown to release system resources and close database connections
 
-  // Enqueue a job
-  jobManager.Enqueue(ctx, "SendSMS", time.Now().Add(time.Minute*20), "123456789", "Hello!")
+  // 5. Initialize JobManager
+  jobManager, err := jobmanager.New(ctx, cfg)
+  fatalOnError(err, "Failed to initialize job manager")
+  defer jobManager.GracefulExit()
 
-  // Schedule a job
-  jobManager.Schedule(context.Background(), "DailyEmailNotificationJob", "30 8 * * *", "alice@example.com", "Hello!")
+  // 6. Enqueue a job
+  for i := 0; i < 105; i++ {
+    message := fmt.Sprintf("Your Login OTP is: %s", generateOTP())
+    number := fmt.Sprintf("12345678%d", i)
+
+    _, err = jobManager.Enqueue(ctx, SendSMSJob, time.Now().Add(time.Duration(i)+time.Second), number, message)
+    if err != nil {
+      log.Printf("Error enqueuing job: %v", err) // Log error without stopping the program
+      return
+    }
+  }
+
+  // 7. Schedule a cron job
+  _, err = jobManager.Schedule(ctx, DailyEmailNotificationJob, "30 8 * * *", "alice@example.com", "Hello!")
+  if err != nil {
+    log.Printf("Error scheduling job: %v", err) // Log error without stopping the program
+  }
+}
+
+// fatalOnError is a helper function to handle critical errors
+func fatalOnError(err error, msg string) {
+  if err != nil {
+    log.Fatalf("%s: %v", msg, err)
+  }
+}
+
+func sendSms(to string, message string) error {
+  fmt.Printf("Number: %s, Message: %s\n", to, message)
+  return nil
+}
+
+func sendEmail(address string, body string) error {
+  fmt.Printf("Send Email to : "+address, body)
+  return nil
+}
+
+func generateOTP() string {
+  nBig, err := rand.Int(rand.Reader, big.NewInt(1000000))
+  if err != nil {
+    panic(err)
+  }
+
+  code := fmt.Sprintf("%06d", nBig.Int64())
+  return code
 }
 
 ```
@@ -222,12 +290,9 @@ GoFire provides graceful shutdown functionality to ensure proper cleanup of syst
 
 ```go
 // Initialize GoFire
-jobManager, err := gofire.SetUp(context.Background(), *cfg)
-if err != nil {
-    log.Fatal(err)
-}
-defer jobManager.ShutDown() // Ensures proper cleanup of resources
-
+jobManager, err := jobmanager.New(ctx, cfg)
+fatalOnError(err, "Failed to initialize job manager")
+defer jobManager.GracefulExit()
 // The ShutDown method:
 // - Stops all job processors
 // - Closes database connections
