@@ -45,6 +45,9 @@ func (jh *JobHandler) Execute(name string, args ...any) error {
 }
 
 func (jh *JobHandler) List() []string {
+	jh.mutex.Lock()
+	defer jh.mutex.Unlock()
+
 	names := make([]string, 0, len(jh.handlers))
 	for name := range jh.handlers {
 		names = append(names, name)
