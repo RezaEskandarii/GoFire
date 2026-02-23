@@ -8,112 +8,116 @@ import (
 	"github.com/RezaEskandarii/gofire/internal/store"
 	"github.com/RezaEskandarii/gofire/types/config"
 	"github.com/RezaEskandarii/gofire/web"
-	_ "github.com/lib/pq"
 	"log"
 	"runtime"
 )
 
 // New initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
 //
-// It dynamically sets up storage backends (PostgreSQL or Redis), registers job handlers,
-// initializes the Storesitories and distributed lock manager, and launches all necessary background services,
-// including job enqueuing, cron evaluation, and optionally the admin dashboard.
+// It creates a single Container (dependency injection container) that wires all services,
+// then performs bootstrap (DB migrations, admin user), starts background workers (enqueue processor,
+// cron processor, optional queue sync), and optionally the web dashboard.
 //
-// The function performs the following steps:
-//  1. Connects to the specified storage backend based on cfg.StorageDriver (Postgres or Redis).
-//  2. Registers all job handlers defined in cfg.Handlers.
-//  3. Instantiates Storesitories, schedulers, and locking mechanisms using createJobDependency.
-//  4. Runs schema and migration setup if PostgreSQL is used (protected by a distributed lock).
-//  5. Starts background workers for scheduled and recurring jobs.
-//  6. Launches a web dashboard for job monitoring and manual control (if enabled).
+// This is the single entry point for application initialization.
 //
 // Parameters:
 //   - ctx: context used for cancellation and timeout propagation to background workers.
-//   - cfg: full configuration of the system (including storage, handlers, worker count, dashboard options).
+//   - cfg: full configuration of the system (storage, handlers, worker count, dashboard options).
 //
 // Returns:
-//   - JobManager: a configured job manager ready to enqueue, execute, and monitor jobs.
-//   - error: any failure that prevents full system setup (e.g., invalid client, failed connection, migration error).
+//   - JobManager: a configured job manager ready to enqueue, schedule, and monitor jobs.
+//   - error: any failure that prevents full system setup.
 func New(ctx context.Context, cfg *config.GofireConfig) (*client.JobManager, error) {
-
 	log.Printf("GOMAXPROCS Is: %d\n", runtime.GOMAXPROCS(0))
-	// ---------------------------------------------------------------------------------------------
-	// Recover from any panic and log the error (for safety in booting process)
-	// ---------------------------------------------------------------------------------------------
+
 	defer func() {
-		if err := recover(); err != nil {
-			log.Println(err)
+		if r := recover(); r != nil {
+			log.Println("panic during init:", r)
 		}
 	}()
 
-	jobHandler, dependencies, jobManager, err := app.GetDependencies(cfg)
+	// Single container - creates all dependencies once
+	container, err := app.NewContainer(ctx, cfg)
 	if err != nil {
-		return jobManager, err
-	}
-
-	// ---------------------------------------------------------------------------------------------
-	// Initialize database with lock jobManager (for schema setup or other bootstrapping logic)
-	// ---------------------------------------------------------------------------------------------
-	if err = db.Init(cfg.PostgresConfig.ConnectionUrl, dependencies.LockMgr); err != nil {
 		return nil, err
 	}
 
-	// ---------------------------------------------------------------------------------------------
-	// If admin user is defined in client, create the dashboard admin account
-	// ---------------------------------------------------------------------------------------------
-	if err = createDashboardAdminIfConfigured(ctx, cfg, dependencies.UserStore); err != nil {
+	// Register all job handlers from config
+	for _, handler := range cfg.Handlers {
+		if err := container.JobHandler.Register(handler.JobName, handler.Func); err != nil {
+			return nil, err
+		}
+	}
+
+	// Bootstrap: DB migrations (protected by distributed lock)
+	if err := db.Init(cfg.PostgresConfig.ConnectionUrl, container.LockManager); err != nil {
 		return nil, err
 	}
 
-	// ---------------------------------------------------------------------------------------------
-	// Start dashboard client if authentication is enabled
-	// ---------------------------------------------------------------------------------------------
-	if cfg.DashboardAuthEnabled {
-		runWebServer(dependencies, cfg)
+	// Bootstrap: Create dashboard admin if configured
+	if err := createDashboardAdminIfConfigured(ctx, cfg, container.UserStore); err != nil {
+		return nil, err
 	}
 
-	// ---------------------------------------------------------------------------------------------
-	// Create the main JobManager with initialized components
-	// ---------------------------------------------------------------------------------------------
-	jm := client.NewJobManager(
-		dependencies.EnqueuedJobStore,
-		dependencies.CronJobStore,
-		jobHandler,
-		dependencies.LockMgr,
-		dependencies.MessageBroker,
-		cfg.UseQueueWriter,
-		cfg.RabbitMQConfig.Queue,
-	)
+	// Start background workers (enqueue processor, cron processor)
+	jobCtx, cancel := context.WithCancel(ctx)
+	container.JobManager.Cancel = cancel
+	container.JobManager.Wg.Add(2)
 
-	// ---------------------------------------------------------------------------------------------
-	// Return the fully initialized JobManager
-	// ---------------------------------------------------------------------------------------------
-	return jm, nil
-}
-
-// runWebServer initializes and starts the web client for the dashboard interface in a separate goroutine.
-func runWebServer(managers *app.JobDependency, cfg *config.GofireConfig) {
 	go func() {
-		router := web.NewRouteHandler(managers.EnqueuedJobStore, managers.UserStore, managers.CronJobStore, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
-		if err := router.Serve(); err != nil {
-			log.Printf("failed to start client: %v", err)
+		defer container.JobManager.Wg.Done()
+		if err := container.EnqueueScheduler.Start(jobCtx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
+			log.Printf("EnqueueScheduler failed: %v", err)
 		}
 	}()
+
+	go func() {
+		defer container.JobManager.Wg.Done()
+		if err := container.CronJobManager.Start(jobCtx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
+			log.Printf("CronJobManager failed: %v", err)
+		}
+	}()
+
+	// Start queue-storage sync worker if RabbitMQ is enabled
+	if cfg.UseQueueWriter {
+		go func() {
+			if err := container.EnqueueScheduler.StartQueueAndStorageSyncWorker(jobCtx, cfg.RabbitMQConfig.Queue, true); err != nil {
+				log.Printf("Queue sync worker failed: %v", err)
+			}
+		}()
+	}
+
+	// Start web dashboard if auth is enabled
+	if cfg.DashboardAuthEnabled {
+		go func() {
+			router := web.NewRouteHandler(
+				container.EnqueuedJobStore,
+				container.UserStore,
+				container.CronJobStore,
+				cfg.SecretKey,
+				cfg.DashboardAuthEnabled,
+				cfg.DashboardPort,
+			)
+			if err := router.Serve(); err != nil {
+				log.Printf("web dashboard failed: %v", err)
+			}
+		}()
+	}
+
+	return container.JobManager, nil
 }
 
-// createDashboardAdminIfConfigured creates the default dashboard user if credentials are provided
-// and the user does not already exist in the store.
 func createDashboardAdminIfConfigured(ctx context.Context, cfg *config.GofireConfig, userStore store.UserStore) error {
-	if cfg.DashboardUserName != "" && cfg.DashboardPassword != "" {
-		if user, err := userStore.FindByUsername(ctx, cfg.DashboardUserName); err == nil && user == nil {
-
-			if _, err := userStore.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword); err != nil {
-				return err
-			}
-
-		} else {
-			return err
-		}
+	if cfg.DashboardUserName == "" || cfg.DashboardPassword == "" {
+		return nil
 	}
-	return nil
+	user, err := userStore.FindByUsername(ctx, cfg.DashboardUserName)
+	if err != nil {
+		return err
+	}
+	if user != nil {
+		return nil // Admin already exists
+	}
+	_, err = userStore.Create(ctx, cfg.DashboardUserName, cfg.DashboardPassword)
+	return err
 }
