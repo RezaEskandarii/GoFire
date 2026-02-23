@@ -64,12 +64,12 @@ type RabbitMQConfig struct {
 	ContentType string
 }
 
-// Option type for functional options pattern
-type Option func(*GofireConfig) error
+// ContainerOption type for functional options pattern
+type ContainerOption func(*GofireConfig) error
 
 // NewGofireConfig creates a new instance of GofireConfig with default values.
 // Only the 'Instance' name is required; other fields use predefined defaults.
-func NewGofireConfig(instance string, opts ...Option) (*GofireConfig, error) {
+func NewGofireConfig(instance string, opts ...ContainerOption) (*GofireConfig, error) {
 	cfg := &GofireConfig{
 		Instance:         instance,
 		EnqueueInterval:  DefaultEnqueueInterval,
@@ -92,7 +92,7 @@ func NewGofireConfig(instance string, opts ...Option) (*GofireConfig, error) {
 	return cfg, nil
 }
 
-func WithAdminDashboardConfig(username, password, secretKey string, port uint) Option {
+func WithAdminDashboardConfig(username, password, secretKey string, port uint) ContainerOption {
 	return func(c *GofireConfig) error {
 		if username == "" || password == "" || secretKey == "" || port == 0 {
 			return errors.New("admin dashboard client: username, password, secretKey, and port are required")
@@ -107,7 +107,7 @@ func WithAdminDashboardConfig(username, password, secretKey string, port uint) O
 	}
 }
 
-func WithPostgresConfig(pg PostgresConfig) Option {
+func WithPostgresConfig(pg PostgresConfig) ContainerOption {
 	return func(c *GofireConfig) error {
 		if c.StorageDriver != Postgres {
 			return fmt.Errorf("cannot set Postgres client when driver is %s", c.StorageDriver.String())
@@ -121,7 +121,7 @@ func WithPostgresConfig(pg PostgresConfig) Option {
 	}
 }
 
-func WithWorkerCount(n int) Option {
+func WithWorkerCount(n int) ContainerOption {
 	return func(c *GofireConfig) error {
 		if n < 1 {
 			return errors.New("worker count must be positive")
@@ -131,7 +131,7 @@ func WithWorkerCount(n int) Option {
 	}
 }
 
-func WithEnqueueInterval(seconds int) Option {
+func WithEnqueueInterval(seconds int) ContainerOption {
 	return func(c *GofireConfig) error {
 		if seconds < 1 {
 			return errors.New("enqueue interval must be positive")
@@ -141,7 +141,7 @@ func WithEnqueueInterval(seconds int) Option {
 	}
 }
 
-func WithScheduleInterval(seconds int) Option {
+func WithScheduleInterval(seconds int) ContainerOption {
 	return func(c *GofireConfig) error {
 		if seconds < 1 {
 			return errors.New("schedule interval must be positive")
@@ -151,7 +151,7 @@ func WithScheduleInterval(seconds int) Option {
 	}
 }
 
-func WithBatchSize(batchSize int) Option {
+func WithBatchSize(batchSize int) ContainerOption {
 	return func(c *GofireConfig) error {
 		if batchSize < 1 {
 			return errors.New("batch size must be positive")
@@ -184,7 +184,7 @@ func (c *GofireConfig) RegisterHandlers(handlers []MethodHandler) error {
 // and later consumed in batches for bulk writing into the database.
 // This approach helps decouple job submission from database writes,
 // improving throughput and scalability.
-func UseRabbitMQueueWriter(writeToQueue bool) Option {
+func UseRabbitMQueueWriter(writeToQueue bool) ContainerOption {
 	return func(c *GofireConfig) error {
 		c.UseQueueWriter = writeToQueue
 		if writeToQueue {
@@ -194,7 +194,7 @@ func UseRabbitMQueueWriter(writeToQueue bool) Option {
 	}
 }
 
-func WithRabbitMQConfig(cfg RabbitMQConfig) Option {
+func WithRabbitMQConfig(cfg RabbitMQConfig) ContainerOption {
 	return func(c *GofireConfig) error {
 		if cfg.URL == "" {
 			return errors.New("rabbitmq client: URL is required")

@@ -36,7 +36,6 @@ import (
   "context"
   "crypto/rand"
   "fmt"
-  "github.com/RezaEskandarii/gofire/gofire"
   "github.com/RezaEskandarii/gofire/jobmanager"
   "github.com/RezaEskandarii/gofire/types/config"
   "log"
@@ -100,17 +99,12 @@ func main() {
     log.Fatal(err)
   }
 
-  // 4. Add Server
-  if err := gofire.AddServer(ctx, cfg); err != nil {
-    log.Fatal(err)
-  }
-
-  // 5. Initialize JobManager
+  // 4. Initialize JobManager (single entry point: creates container, starts workers + dashboard)
   jobManager, err := jobmanager.New(ctx, cfg)
   fatalOnError(err, "Failed to initialize job manager")
   defer jobManager.GracefulExit()
 
-  // 6. Enqueue a job
+  // 5. Enqueue a job
   for i := 0; i < 105; i++ {
     message := fmt.Sprintf("Your Login OTP is: %s", generateOTP())
     number := fmt.Sprintf("12345678%d", i)
@@ -122,7 +116,7 @@ func main() {
     }
   }
 
-  // 7. Schedule a cron job
+  // 6. Schedule a cron job
   _, err = jobManager.Schedule(ctx, DailyEmailNotificationJob, "30 8 * * *", "alice@example.com", "Hello!")
   if err != nil {
     log.Printf("Error scheduling job: %v", err) // Log error without stopping the program
