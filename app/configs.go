@@ -1,11 +1,11 @@
-package di
+package app
 
 import (
 	"database/sql"
 	"log"
 )
 
-func getPG(connection string) *sql.DB {
+func getPostgresDB(connection string) *sql.DB {
 	db, err := sql.Open("postgres", connection)
 	if err != nil {
 		log.Fatal(err)

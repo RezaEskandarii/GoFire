@@ -2,8 +2,8 @@ package jobmanager
 
 import (
 	"context"
+	"github.com/RezaEskandarii/gofire/app"
 	"github.com/RezaEskandarii/gofire/client"
-	"github.com/RezaEskandarii/gofire/di"
 	"github.com/RezaEskandarii/gofire/internal/db"
 	"github.com/RezaEskandarii/gofire/internal/store"
 	"github.com/RezaEskandarii/gofire/types/config"
@@ -46,7 +46,7 @@ func New(ctx context.Context, cfg *config.GofireConfig) (*client.JobManager, err
 		}
 	}()
 
-	jobHandler, dependencies, jobManager, err := di.GetDependencies(cfg)
+	jobHandler, dependencies, jobManager, err := app.GetDependencies(cfg)
 	if err != nil {
 		return jobManager, err
 	}
@@ -92,7 +92,7 @@ func New(ctx context.Context, cfg *config.GofireConfig) (*client.JobManager, err
 }
 
 // runWebServer initializes and starts the web client for the dashboard interface in a separate goroutine.
-func runWebServer(managers *di.JobDependency, cfg *config.GofireConfig) {
+func runWebServer(managers *app.JobDependency, cfg *config.GofireConfig) {
 	go func() {
 		router := web.NewRouteHandler(managers.EnqueuedJobStore, managers.UserStore, managers.CronJobStore, cfg.SecretKey, cfg.DashboardAuthEnabled, cfg.DashboardPort)
 		if err := router.Serve(); err != nil {

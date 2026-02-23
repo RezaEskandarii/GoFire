@@ -1,4 +1,4 @@
-package di
+package app
 
 import (
 	"database/sql"
@@ -43,7 +43,7 @@ func getStorageConnections(cfg *config2.GofireConfig) (*sql.DB, *redis.Client, e
 
 	switch cfg.StorageDriver {
 	case config2.Postgres:
-		sqlDB = getPG(cfg.PostgresConfig.ConnectionUrl)
+		sqlDB = getPostgresDB(cfg.PostgresConfig.ConnectionUrl)
 		//setPostgresConnectionPool(sqlDB)
 
 	//case config.Redis:

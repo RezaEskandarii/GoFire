@@ -2,7 +2,7 @@ package gofire
 
 import (
 	"context"
-	"github.com/RezaEskandarii/gofire/di"
+	"github.com/RezaEskandarii/gofire/app"
 	"github.com/RezaEskandarii/gofire/types/config"
 	"log"
 )
@@ -19,7 +19,7 @@ func AddServer(ctx context.Context, cfg *config.GofireConfig) error {
 
 	serverInitialized = true
 
-	jobHandler, dependencies, jobManager, err := di.GetDependencies(cfg)
+	jobHandler, dependencies, jobManager, err := app.GetDependencies(cfg)
 	if err != nil {
 		return err
 	}
