@@ -12,13 +12,10 @@ import (
 	"runtime"
 )
 
-// New initializes the entire Gofire job scheduling and execution system using the provided GofireConfig.
+// New creates a JobManager for enqueue/schedule operations and (optionally) starts the dashboard.
 //
-// It creates a single Container (dependency injection container) that wires all services,
-// then performs bootstrap (DB migrations, admin user), starts background workers (enqueue processor,
-// cron processor, optional queue sync), and optionally the web dashboard.
-//
-// This is the single entry point for application initialization.
+// IMPORTANT: This does NOT start background workers. To process jobs (like Hangfire Server),
+// run gofire.AddServer in the dedicated worker pod(s).
 //
 // Parameters:
 //   - ctx: context used for cancellation and timeout propagation to background workers.
@@ -36,7 +33,7 @@ func New(ctx context.Context, cfg *config.GofireConfig) (*client.JobManager, err
 		}
 	}()
 
-	// Single container - creates all dependencies once
+	// Creates dependencies (DB, stores, handlers, etc.). No workers are started here.
 	container, err := app.NewContainer(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -57,34 +54,6 @@ func New(ctx context.Context, cfg *config.GofireConfig) (*client.JobManager, err
 	// Bootstrap: Create dashboard admin if configured
 	if err := createDashboardAdminIfConfigured(ctx, cfg, container.UserStore); err != nil {
 		return nil, err
-	}
-
-	// Start background workers (enqueue processor, cron processor)
-	jobCtx, cancel := context.WithCancel(ctx)
-	container.JobManager.Cancel = cancel
-	container.JobManager.Wg.Add(2)
-
-	go func() {
-		defer container.JobManager.Wg.Done()
-		if err := container.EnqueueScheduler.Start(jobCtx, cfg.EnqueueInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
-			log.Printf("EnqueueScheduler failed: %v", err)
-		}
-	}()
-
-	go func() {
-		defer container.JobManager.Wg.Done()
-		if err := container.CronJobManager.Start(jobCtx, cfg.ScheduleInterval, cfg.WorkerCount, cfg.BatchSize); err != nil {
-			log.Printf("CronJobManager failed: %v", err)
-		}
-	}()
-
-	// Start queue-storage sync worker if RabbitMQ is enabled
-	if cfg.UseQueueWriter {
-		go func() {
-			if err := container.EnqueueScheduler.StartQueueAndStorageSyncWorker(jobCtx, cfg.RabbitMQConfig.Queue, true); err != nil {
-				log.Printf("Queue sync worker failed: %v", err)
-			}
-		}()
 	}
 
 	// Start web dashboard if auth is enabled
