@@ -5,14 +5,16 @@ import (
 	"github.com/RezaEskandarii/gofire/types"
 	"net/http"
 	"strconv"
+	"sync"
 )
 
 type DataMap struct {
-	Data map[string]interface{}
+	Data  map[string]interface{}
+	mutex *sync.Mutex
 }
 
-func NewPaginatedDataMap[T any](data types.PaginationResult[T]) DataMap {
-	return DataMap{
+func NewPaginatedDataMap[T any](data types.PaginationResult[T]) *DataMap {
+	return &DataMap{
 		Data: map[string]interface{}{
 			"Page":            data.Page,
 			"TotalPages":      data.TotalPages,
@@ -21,10 +23,12 @@ func NewPaginatedDataMap[T any](data types.PaginationResult[T]) DataMap {
 			"HasNextPage":     data.HasNextPage,
 			"TotalItems":      data.TotalItems,
 		},
-	}
+		mutex: new(sync.Mutex)}
 }
 
-func (d DataMap) Add(key string, value interface{}) DataMap {
+func (d *DataMap) Add(key string, value interface{}) *DataMap {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
 	d.Data[key] = value
 	return d
 }
